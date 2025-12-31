@@ -26,6 +26,24 @@ public class RefreshToken {
 
     private Instant expiryDate;
 
+    // Token rotation - track token families
+    private String tokenFamily;
+
+    @Builder.Default
+    private boolean revoked = false;
+
+    private String revokedReason;
+
+    // Security tracking
+    private String ipAddress;
+    private String userAgent;
+
     @CreatedDate
     private Instant createdAt;
+
+    private Instant usedAt;
+
+    public boolean isExpired() {
+        return Instant.now().isAfter(expiryDate);
+    }
 }
