@@ -169,6 +169,7 @@ $RECYCLE.BIN/
 # CRITICAL: Secrets & Environment Variables
 # ================================================
 .env
+.env.example
 .env.local
 .env.development
 .env.test
