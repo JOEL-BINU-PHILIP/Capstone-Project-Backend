@@ -1,17 +1,17 @@
 package com.app.auth.controller;
 
-import com.app.auth.dto.RegisterRequestDTO;
-import com.app.auth.model.RefreshToken;
-import com.app.auth.model.User;
-import com.app.auth.security.JwtUtils;
+import com.app.auth.dto.request.*;
+import com.app.auth.dto.response.AuthResponseDTO;
+import com.app.auth.payload.ApiResponse;
 import com.app.auth.service.AuthService;
 import com.app.auth.service.RefreshTokenService;
-import com.app.auth.service.UserService;
+import com.app.auth.util.RequestUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -19,85 +19,158 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
-    private final UserService userService;
 
-    // ===============================
-    // LOGIN
-    // ===============================
     @PostMapping("/login")
-    public Map<String, String> login(
-            @RequestParam String username,
-            @RequestParam String password
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> login(
+            @Valid @RequestBody LoginRequestDTO request,
+            HttpServletRequest httpRequest
     ) {
-
-        User user = authService.authenticate(username, password);
-
-        String accessToken = jwtUtils.generateAccessToken(user.getUsername());
-        RefreshToken refreshToken =
-                refreshTokenService.createRefreshToken(user.getId());
-
-        return Map.of(
-                "accessToken", accessToken,
-                "tokenType", "Bearer",
-                "refreshToken", refreshToken.getToken()
+        AuthResponseDTO response = authService.login(request, httpRequest);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Login successful", response)
         );
     }
 
-    // ===============================
-    // REFRESH TOKEN
-    // ===============================
-    @PostMapping("/refresh")
-    public Map<String, String> refresh(@RequestParam String refreshToken) {
-
-        RefreshToken token =
-                refreshTokenService.verifyExpiration(refreshToken);
-
-        User user = userService
-                .findById(token.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        String newAccessToken =
-                jwtUtils.generateAccessToken(user.getUsername());
-
-        return Map.of(
-                "accessToken", newAccessToken,
-                "tokenType", "Bearer"
-        );
-    }
-
-    // ===============================
-    // LOGOUT
-    // ===============================
-    @PostMapping("/logout")
-    public void logout(@RequestParam String refreshToken) {
-
-        RefreshToken token =
-                refreshTokenService.verifyExpiration(refreshToken);
-
-        refreshTokenService.deleteByUserId(token.getUserId());
-    }
-
-    @PostMapping("/register")
-    public Map<String, String> register(
-            @Valid @RequestBody RegisterRequestDTO dto
+    @PostMapping("/register/customer")
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> registerCustomer(
+            @Valid @RequestBody RegisterCustomerDTO dto
     ) {
-        User user = authService.register(
+        AuthResponseDTO response = authService.registerCustomer(
                 dto.getUsername(),
                 dto.getEmail(),
-                dto.getPassword()
+                dto.getPassword(),
+                dto.getFirstName(),
+                dto.getLastName(),
+                dto.getPhoneNumber(),
+                dto.getCity(),
+                dto.getState(),
+                dto.getZipCode()
         );
 
-        String accessToken = jwtUtils.generateAccessToken(user.getUsername());
-        RefreshToken refreshToken =
-                refreshTokenService.createRefreshToken(user.getId());
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(
+                        true,
+                        "Customer registered successfully. Please verify your email.",
+                        response
+                ));
+    }
 
-        return Map.of(
-                "accessToken", accessToken,
-                "tokenType", "Bearer",
-                "refreshToken", refreshToken.getToken()
+    @PostMapping("/register/technician")
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> registerTechnician(
+            @Valid @RequestBody RegisterTechnicianDTO dto
+    ) {
+        AuthResponseDTO response = authService.registerTechnician(
+                dto.getUsername(),
+                dto.getEmail(),
+                dto.getPassword(),
+                dto.getFirstName(),
+                dto.getLastName(),
+                dto.getPhoneNumber(),
+                dto.getSkills(),
+                dto.getExperienceYears(),
+                dto.getBio(),
+                dto.getCity(),
+                dto.getState(),
+                dto.getIdProofType()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(
+                        true,
+                        "Technician registered successfully. Please verify your email and wait for approval.",
+                        response
+                ));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequestDTO request,
+            HttpServletRequest httpRequest
+    ) {
+        String ipAddress = RequestUtils.getClientIp(httpRequest);
+        String userAgent = RequestUtils.getUserAgent(httpRequest);
+
+        AuthResponseDTO response = refreshTokenService.refreshAccessToken(
+                request.getRefreshToken(),
+                ipAddress,
+                userAgent
+        );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Token refreshed successfully", response)
         );
     }
 
+    @GetMapping("/verify-email")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @RequestParam String token
+    ) {
+        authService.verifyEmail(token);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Email verified successfully", null)
+        );
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(
+            @RequestParam String email
+    ) {
+        authService.resendVerificationEmail(email);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Verification email sent", null)
+        );
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequestDTO request
+    ) {
+        authService.initiatePasswordReset(request.getEmail());
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "If an account exists with this email, a password reset link has been sent",
+                        null
+                )
+        );
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequestDTO request
+    ) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Password reset successfully", null)
+        );
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody ChangePasswordRequestDTO request,
+            @RequestAttribute("userId") String userId
+    ) {
+        authService.changePassword(
+                userId,
+                request.getCurrentPassword(),
+                request.getNewPassword()
+        );
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Password changed successfully", null)
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody RefreshTokenRequestDTO request,
+            HttpServletRequest httpRequest
+    ) {
+        authService.logout(request.getRefreshToken(), httpRequest);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Logged out successfully", null)
+        );
+    }
 }
