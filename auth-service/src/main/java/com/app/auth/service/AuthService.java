@@ -4,7 +4,8 @@ import com.app.auth.model.User;
 
 public interface AuthService {
 
-    User register(User user);
-
     User authenticate(String username, String password);
+
+    User register(String username, String email, String password);
 }
+
