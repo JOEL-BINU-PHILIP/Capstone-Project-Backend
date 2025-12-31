@@ -180,7 +180,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     @Override
-    @Scheduled(cron = "0 0 2 * * *") // Run at 2 AM daily
     @Transactional
     public void cleanupExpiredTokens() {
         List<RefreshToken> expiredTokens = refreshTokenRepository

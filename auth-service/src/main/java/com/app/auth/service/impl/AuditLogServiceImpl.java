@@ -70,7 +70,6 @@ public class AuditLogServiceImpl implements AuditLogService {
         return auditLogRepository.findByUserId(userId, pageable);
     }
 
-    @Scheduled(cron = "0 0 3 * * *") // Run at 3 AM daily
     public void cleanupOldLogs() {
         // Keep logs for 90 days
         Instant cutoffDate = Instant.now().minus(90, ChronoUnit.DAYS);

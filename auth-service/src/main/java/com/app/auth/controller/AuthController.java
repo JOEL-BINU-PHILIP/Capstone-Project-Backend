@@ -106,7 +106,7 @@ public class AuthController {
 
     @GetMapping("/verify-email")
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
-            @RequestParam String token
+            @RequestParam("token") String token
     ) {
         authService.verifyEmail(token);
         return ResponseEntity.ok(

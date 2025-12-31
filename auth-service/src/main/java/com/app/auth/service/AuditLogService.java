@@ -24,4 +24,6 @@ public interface AuditLogService {
     void logTokenRefresh(String userId, String username, String ipAddress, String userAgent);
 
     Page<AuditLog> getUserAuditLogs(String userId, Pageable pageable);
+
+    void cleanupOldLogs();
 }
