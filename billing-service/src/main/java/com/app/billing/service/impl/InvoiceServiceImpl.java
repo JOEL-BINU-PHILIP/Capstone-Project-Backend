@@ -1,15 +1,18 @@
-package com.app.billing. service.impl;
+package com.app.billing.service.impl;
 
-import com. app.billing.dto.request. CreateInvoiceRequest;
-import com.app.billing.dto. request.PayInvoiceRequest;
-import com.app.billing. dto.response.InvoiceResponse;
+import com.app.billing.dto.request.CreateInvoiceRequest;
+import com.app.billing.dto.request.PayInvoiceRequest;
+import com. app.billing.dto.response. InvoiceResponse;
 import com.app.billing.dto.response.RevenueReportResponse;
-import com. app.billing.exception.BillingException;
+import com.app.billing.event.BillingEvent;
+import com.app. billing.event.EventType;
+import com.app.billing.exception.BillingException;
 import com. app.billing.exception.DuplicateInvoiceException;
 import com.app.billing. exception.ResourceNotFoundException;
-import com. app.billing.model.Invoice;
+import com.app.billing.model.Invoice;
 import com.app.billing.model.InvoiceStatus;
-import com.app. billing.repository.InvoiceRepository;
+import com.app.billing. repository.InvoiceRepository;
+import com.app.billing.service. EventPublisherService;
 import com.app.billing.service. InvoiceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +21,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time. Instant;
-import java.time.LocalDate;
-import java. time.Year;
+import java.time.Instant;
+import java. time.LocalDate;
+import java.time. Year;
 import java.time.ZoneId;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
+    private final EventPublisherService eventPublisherService;
 
     private static final Double DEFAULT_TAX_PERCENTAGE = 18.0;
 
@@ -43,7 +46,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         // Check if invoice already exists for this booking
         if (invoiceRepository.existsByBookingId(request.getBookingId())) {
-            throw new DuplicateInvoiceException("Invoice already exists for booking:  " + request.getBookingId());
+            throw new DuplicateInvoiceException("Invoice already exists for booking: " + request.getBookingId());
         }
 
         // Calculate pricing
@@ -61,10 +64,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .bookingNumber(request.getBookingNumber())
                 .customerId(request.getCustomerId())
                 .customerName(request.getCustomerName())
-                .customerEmail(request.getCustomerEmail())
-                .customerPhone(request. getCustomerPhone())
+                .customerEmail(request. getCustomerEmail())
+                .customerPhone(request.getCustomerPhone())
                 .serviceId(request.getServiceId())
-                .serviceName(request.getServiceName())
+                .serviceName(request. getServiceName())
                 .categoryName(request.getCategoryName())
                 .technicianId(request.getTechnicianId())
                 .technicianName(request.getTechnicianName())
@@ -75,7 +78,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .discountAmount(discountAmount)
                 .totalAmount(totalAmount)
                 .currency("INR")
-                .status(InvoiceStatus. PENDING)
+                .status(InvoiceStatus.PENDING)
                 .invoiceDate(LocalDate.now())
                 .dueDate(LocalDate.now().plusDays(7))
                 .notes(request.getNotes())
@@ -85,6 +88,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Invoice created:  {} for booking: {}, total: {}",
                 saved.getInvoiceNumber(), request.getBookingId(), totalAmount);
+
+        // Publish INVOICE_GENERATED event
+        publishInvoiceGeneratedEvent(saved);
 
         return toResponse(saved);
     }
@@ -127,7 +133,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceRepository.findByStatus(status)
                 .stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .collect(Collectors. toList());
     }
 
     @Override
@@ -208,7 +214,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .sum();
 
         double collectedRevenue = invoices.stream()
-                .filter(inv -> inv.getStatus() == InvoiceStatus.PAID)
+                .filter(inv -> inv. getStatus() == InvoiceStatus.PAID)
                 .mapToDouble(Invoice::getTotalAmount)
                 .sum();
 
@@ -221,7 +227,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Map<String, Long> invoicesByStatus = invoices.stream()
                 .collect(Collectors.groupingBy(
                         inv -> inv.getStatus().name(),
-                        Collectors. counting()
+                        Collectors.counting()
                 ));
 
         // Revenue by category (only paid invoices)
@@ -242,14 +248,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .cancelledInvoices(invoicesByStatus.getOrDefault(InvoiceStatus.CANCELLED.name(), 0L))
                 .invoicesByStatus(invoicesByStatus)
                 .revenueByCategory(revenueByCategory)
-                .periodStart(startDate.toString())
-                .periodEnd(endDate. toString())
+                .periodStart(startDate. toString())
+                .periodEnd(endDate.toString())
                 .build();
     }
 
     @Override
     public List<InvoiceResponse> searchInvoices(String query) {
-        return invoiceRepository. searchInvoices(query)
+        return invoiceRepository.searchInvoices(query)
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -300,5 +306,32 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .createdAt(invoice.getCreatedAt())
                 .updatedAt(invoice.getUpdatedAt())
                 .build();
+    }
+
+    // ==================== EVENT PUBLISHING ====================
+
+    private void publishInvoiceGeneratedEvent(Invoice invoice) {
+        try {
+            BillingEvent event = BillingEvent.builder()
+                    . eventType(EventType.INVOICE_GENERATED)
+                    . userId(invoice.getCustomerId())
+                    .userEmail(invoice.getCustomerEmail())
+                    .userName(invoice.getCustomerName())
+                    .userRole("CUSTOMER")
+                    .invoiceId(invoice.getId())
+                    .invoiceNumber(invoice.getInvoiceNumber())
+                    .amount(invoice.getTotalAmount())
+                    .currency(invoice.getCurrency())
+                    .bookingId(invoice.getBookingId())
+                    .bookingNumber(invoice.getBookingNumber())
+                    .build();
+
+            eventPublisherService.publishBillingEvent(event);
+
+        } catch (Exception e) {
+            log.error("Failed to publish invoice generated event for invoice {}: {}",
+                    invoice.getInvoiceNumber(), e.getMessage());
+            // Don't fail the main operation if event publishing fails
+        }
     }
 }
