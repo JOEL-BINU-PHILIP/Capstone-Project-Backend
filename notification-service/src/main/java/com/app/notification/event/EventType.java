@@ -1,7 +1,7 @@
-package com.app.notification.model;
+package com.app.notification.event;
 
-public enum NotificationType {
-    // Booking related (8 types)
+public enum EventType {
+    // Booking Events (8 types)
     BOOKING_CREATED,
     TECHNICIAN_ASSIGNED,
     BOOKING_CONFIRMED,
@@ -11,6 +11,6 @@ public enum NotificationType {
     BOOKING_CANCELLED,
     BOOKING_RESCHEDULED,
 
-    // Billing related (1 type)
+    // Billing Events (1 type)
     INVOICE_GENERATED
 }
