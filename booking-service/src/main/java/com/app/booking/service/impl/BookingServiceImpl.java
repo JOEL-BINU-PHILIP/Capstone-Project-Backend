@@ -1,17 +1,21 @@
 package com.app.booking.service.impl;
 
+import com.app.booking.client.AuthServiceClient;
+import com.app.booking.client.CatalogServiceClient;
+import com.app.booking.dto.external.ApiResponseWrapper;
 import com.app.booking.dto.request.*;
-import com.app.booking. dto.response. BookingResponse;
+import com.app.booking. dto.response.BookingResponse;
 import com.app.booking.dto.response.BookingStatsResponse;
 import com.app.booking.event.BookingEvent;
 import com.app.booking.event.EventType;
+import com.app.booking.exception.BookingException;
 import com.app.booking.exception.InvalidStateException;
 import com.app. booking.exception.ResourceNotFoundException;
 import com.app.booking.exception.UnauthorizedException;
 import com. app.booking.model.*;
 import com.app.booking. repository.BookingRepository;
 import com.app.booking.service. BookingService;
-import com.app.booking.service.EventPublisherService;
+import com. app.booking.service.EventPublisherService;
 import com.app.booking.util.BookingMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time. Instant;
-import java.time.Year;
+import java.time. Year;
 import java.util.*;
 import java.util.stream. Collectors;
 
@@ -33,6 +37,10 @@ public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final EventPublisherService eventPublisherService;
 
+    // Feign Clients
+    private final AuthServiceClient authServiceClient;
+    private final CatalogServiceClient catalogServiceClient;
+
     // ==================== CUSTOMER OPERATIONS ====================
 
     @Override
@@ -40,15 +48,25 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse createBooking(CreateBookingRequest request, String customerId,
                                          String customerName, String customerEmail, String customerPhone) {
 
+        // 1. Fetch service details from Catalog Service
+        ServiceDetails serviceDetails = fetchServiceDetails(request.getServiceId());
+
+        // 2. Build pricing details
+        PricingDetails pricing = buildPricingDetails(serviceDetails);
+
+        // 3. Create booking with enriched data
         Booking booking = Booking.builder()
                 .bookingNumber(generateBookingNumber())
                 .customerId(customerId)
                 .customerName(customerName)
                 .customerEmail(customerEmail)
                 .customerPhone(customerPhone)
+                // Service info from Catalog Service
                 .serviceId(request.getServiceId())
-                .serviceName("Service") // TODO: Fetch from catalog service
-                .categoryName("Category") // TODO: Fetch from catalog service
+                .serviceName(serviceDetails.getServiceName())
+                .categoryName(serviceDetails.getCategoryName())
+                // Pricing from Catalog Service
+                .pricing(pricing)
                 .status(BookingStatus.PENDING)
                 .priority(request.getPriority() != null ? request.getPriority() : Priority.NORMAL)
                 .problemDescription(request.getProblemDescription())
@@ -56,8 +74,8 @@ public class BookingServiceImpl implements BookingService {
                 .scheduledDate(request.getScheduledDate())
                 .serviceAddress(AddressDetails.builder()
                         .addressLine1(request.getAddressLine1())
-                        .addressLine2(request.getAddressLine2())
-                        .city(request.getCity())
+                        . addressLine2(request.getAddressLine2())
+                        . city(request.getCity())
                         .state(request.getState())
                         .zipCode(request.getZipCode())
                         .latitude(request.getLatitude())
@@ -68,7 +86,8 @@ public class BookingServiceImpl implements BookingService {
                 .build();
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Booking created: {} by customer: {}", saved.getBookingNumber(), customerId);
+        log.info("Booking created: {} by customer: {} for service: {}",
+                saved.getBookingNumber(), customerId, serviceDetails.getServiceName());
 
         // Publish BOOKING_CREATED event
         publishEvent(saved, EventType.BOOKING_CREATED, null, null);
@@ -118,7 +137,7 @@ public class BookingServiceImpl implements BookingService {
         validateCustomerOwnership(booking, customerId);
         validateCancellable(booking);
 
-        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setStatus(BookingStatus. CANCELLED);
         booking.setCancellation(CancellationDetails.builder()
                 .cancelledBy(customerId)
                 .cancelledByRole("CUSTOMER")
@@ -151,7 +170,7 @@ public class BookingServiceImpl implements BookingService {
             throw new InvalidStateException("Booking has already been rated");
         }
 
-        booking.setRatingFeedback(RatingFeedback.builder()
+        booking.setRatingFeedback(RatingFeedback. builder()
                 .rating(request.getRating())
                 .feedback(request.getFeedback())
                 .ratedAt(Instant.now())
@@ -160,6 +179,8 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} rated with {} stars by customer {}", bookingId, request.getRating(), customerId);
+
+        // TODO: Update technician average rating via Auth Service (optional enhancement)
 
         return BookingMapper.toResponse(saved);
     }
@@ -260,7 +281,7 @@ public class BookingServiceImpl implements BookingService {
         // Publish BOOKING_REJECTED event
         publishEvent(saved, EventType.BOOKING_REJECTED, null, reason);
 
-        return BookingMapper.toResponse(saved);
+        return BookingMapper. toResponse(saved);
     }
 
     @Override
@@ -299,7 +320,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // Verify OTP
-        if (booking. getCompletionOtp() == null || !booking.getCompletionOtp().equals(request.getOtp())) {
+        if (booking.getCompletionOtp() == null || !booking.getCompletionOtp().equals(request.getOtp())) {
             throw new InvalidStateException("Invalid completion OTP");
         }
 
@@ -313,6 +334,9 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} completed by technician {}", bookingId, technicianId);
 
+        // Increment technician's completed jobs via Auth Service
+        incrementTechnicianJobs(technicianId);
+
         // Publish SERVICE_COMPLETED event
         publishEvent(saved, EventType.SERVICE_COMPLETED, null, null);
 
@@ -323,7 +347,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<BookingResponse> getPendingBookings() {
-        return bookingRepository. findByStatus(BookingStatus. PENDING)
+        return bookingRepository. findByStatus(BookingStatus.PENDING)
                 .stream()
                 .map(BookingMapper::toResponse)
                 .collect(Collectors.toList());
@@ -340,7 +364,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public Page<BookingResponse> getAllBookingsPaged(Pageable pageable) {
         return bookingRepository.findAll(pageable)
-                .map(BookingMapper::toResponse);
+                .map(BookingMapper:: toResponse);
     }
 
     @Override
@@ -348,20 +372,24 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse assignTechnician(String bookingId, AssignTechnicianRequest request, String managerId) {
         Booking booking = getBookingEntity(bookingId);
 
-        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.REJECTED) {
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus. REJECTED) {
             throw new InvalidStateException("Can only assign technician to pending or rejected bookings");
         }
 
+        // Validate and fetch technician details from Auth Service
+        TechnicianDetails technicianDetails = fetchAndValidateTechnician(request.getTechnicianId());
+
         booking.setTechnicianId(request.getTechnicianId());
-        booking.setTechnicianName(request.getTechnicianName());
-        booking.setTechnicianPhone(request.getTechnicianPhone());
+        booking.setTechnicianName(technicianDetails.getFullName());
+        booking.setTechnicianPhone(technicianDetails.getPhoneNumber());
         booking.setAssignedBy(managerId);
         booking.setAssignedAt(Instant.now());
         booking.setStatus(BookingStatus.ASSIGNED);
         booking.setUpdatedAt(Instant.now());
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Booking {} assigned to technician {} by manager {}", bookingId, request.getTechnicianId(), managerId);
+        log.info("Booking {} assigned to technician {} ({}) by manager {}",
+                bookingId, technicianDetails. getFullName(), request.getTechnicianId(), managerId);
 
         // Publish TECHNICIAN_ASSIGNED event
         publishEvent(saved, EventType. TECHNICIAN_ASSIGNED, null, null);
@@ -376,7 +404,7 @@ public class BookingServiceImpl implements BookingService {
 
         List<BookingStatus> reassignableStatuses = Arrays.asList(
                 BookingStatus. ASSIGNED,
-                BookingStatus.CONFIRMED,
+                BookingStatus. CONFIRMED,
                 BookingStatus. REJECTED
         );
 
@@ -384,17 +412,21 @@ public class BookingServiceImpl implements BookingService {
             throw new InvalidStateException("Cannot reassign technician at this stage");
         }
 
+        // Validate and fetch technician details from Auth Service
+        TechnicianDetails technicianDetails = fetchAndValidateTechnician(request.getTechnicianId());
+
         booking.setTechnicianId(request.getTechnicianId());
-        booking.setTechnicianName(request.getTechnicianName());
-        booking.setTechnicianPhone(request. getTechnicianPhone());
+        booking.setTechnicianName(technicianDetails. getFullName());
+        booking.setTechnicianPhone(technicianDetails.getPhoneNumber());
         booking.setAssignedBy(managerId);
-        booking.setAssignedAt(Instant. now());
-        booking.setStatus(BookingStatus.ASSIGNED);
+        booking.setAssignedAt(Instant.now());
+        booking.setStatus(BookingStatus. ASSIGNED);
         booking.setConfirmedAt(null);
         booking.setUpdatedAt(Instant.now());
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Booking {} reassigned to technician {} by manager {}", bookingId, request.getTechnicianId(), managerId);
+        log.info("Booking {} reassigned to technician {} ({}) by manager {}",
+                bookingId, technicianDetails.getFullName(), request.getTechnicianId(), managerId);
 
         // Publish TECHNICIAN_ASSIGNED event
         publishEvent(saved, EventType.TECHNICIAN_ASSIGNED, null, null);
@@ -424,7 +456,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} cancelled by manager {}", bookingId, managerId);
 
         // Publish BOOKING_CANCELLED event
-        publishEvent(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
+        publishEvent(saved, EventType. BOOKING_CANCELLED, request. getReason(), null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -442,14 +474,14 @@ public class BookingServiceImpl implements BookingService {
                 .assignedBookings(bookingRepository. countByStatus(BookingStatus. ASSIGNED))
                 .inProgressBookings(bookingRepository. countByStatus(BookingStatus. IN_PROGRESS))
                 .completedBookings(bookingRepository.countByStatus(BookingStatus.COMPLETED))
-                .cancelledBookings(bookingRepository.countByStatus(BookingStatus. CANCELLED))
+                .cancelledBookings(bookingRepository. countByStatus(BookingStatus. CANCELLED))
                 .bookingsByStatus(statusCounts)
                 .build();
     }
 
     @Override
     public List<BookingResponse> searchBookings(String query) {
-        return bookingRepository.searchBookings(query)
+        return bookingRepository. searchBookings(query)
                 .stream()
                 .map(BookingMapper::toResponse)
                 .collect(Collectors.toList());
@@ -469,10 +501,189 @@ public class BookingServiceImpl implements BookingService {
         return BookingMapper.toResponse(booking);
     }
 
+    // ==================== FEIGN CLIENT METHODS ====================
+
+    /**
+     * Fetch service details from Catalog Service
+     */
+    private ServiceDetails fetchServiceDetails(String serviceId) {
+        try {
+            log.debug("Fetching service details from Catalog Service for serviceId: {}", serviceId);
+
+            Map<String, Object> response = catalogServiceClient.getServiceForBooking(serviceId);
+
+            if (response == null) {
+                log.warn("Catalog service returned null response for serviceId: {}", serviceId);
+                return getDefaultServiceDetails(serviceId);
+            }
+
+            Boolean success = (Boolean) response.get("success");
+            if (success == null || !success) {
+                String message = (String) response.get("message");
+                log.warn("Failed to fetch service details:  {}", message);
+
+                // Check if this is a fallback response
+                if (Boolean.TRUE.equals(response.get("fallback"))) {
+                    log.warn("Using fallback - Catalog service unavailable");
+                    return getDefaultServiceDetails(serviceId);
+                }
+
+                throw new BookingException("Service not found or not available: " + serviceId);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) response.get("data");
+
+            if (data == null) {
+                return getDefaultServiceDetails(serviceId);
+            }
+
+            return ServiceDetails.builder()
+                    . serviceId(serviceId)
+                    .serviceName((String) data.get("serviceName"))
+                    .categoryName((String) data.get("categoryName"))
+                    .basePrice(toDouble(data.get("basePrice")))
+                    .taxPercentage(toDouble(data. get("taxPercentage")))
+                    .taxAmount(toDouble(data.get("taxAmount")))
+                    . discountPercentage(toDouble(data.get("discountPercentage")))
+                    .discountAmount(toDouble(data. get("discountAmount")))
+                    .finalPrice(toDouble(data.get("finalPrice")))
+                    .currency((String) data.getOrDefault("currency", "INR"))
+                    .estimatedDurationMinutes(toInteger(data.get("estimatedDurationMinutes")))
+                    .build();
+
+        } catch (BookingException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error fetching service details from Catalog Service:  {}", e.getMessage());
+            return getDefaultServiceDetails(serviceId);
+        }
+    }
+
+    /**
+     * Fetch and validate technician from Auth Service
+     */
+    private TechnicianDetails fetchAndValidateTechnician(String technicianUserId) {
+        try {
+            log.debug("Validating technician from Auth Service:  {}", technicianUserId);
+
+            // First validate the technician
+            ApiResponseWrapper<Map<String, Object>> validationResponse =
+                    authServiceClient.validateTechnician(technicianUserId);
+
+            if (validationResponse == null || !validationResponse.isSuccess()) {
+                log.warn("Technician validation failed for:  {}", technicianUserId);
+                throw new BookingException("Unable to validate technician:  " + technicianUserId);
+            }
+
+            Map<String, Object> validationData = validationResponse.getData();
+
+            // Check if fallback response
+            if (Boolean.TRUE.equals(validationData.get("fallback"))) {
+                log. warn("Auth service unavailable - cannot validate technician");
+                throw new BookingException("Auth service unavailable.  Please try again later.");
+            }
+
+            Boolean canAssign = (Boolean) validationData.get("canAssign");
+            if (canAssign == null || !canAssign) {
+                Boolean exists = (Boolean) validationData.get("exists");
+                Boolean approved = (Boolean) validationData.get("approved");
+                Boolean available = (Boolean) validationData.get("available");
+
+                if (! Boolean.TRUE.equals(exists)) {
+                    throw new BookingException("Technician not found:  " + technicianUserId);
+                }
+                if (!Boolean.TRUE.equals(approved)) {
+                    throw new BookingException("Technician is not approved: " + technicianUserId);
+                }
+                if (!Boolean.TRUE.equals(available)) {
+                    throw new BookingException("Technician is not available: " + technicianUserId);
+                }
+                throw new BookingException("Technician cannot be assigned: " + technicianUserId);
+            }
+
+            // Fetch full technician details
+            ApiResponseWrapper<Map<String, Object>> technicianResponse =
+                    authServiceClient. getTechnicianByUserId(technicianUserId);
+
+            if (technicianResponse == null || !technicianResponse.isSuccess() || technicianResponse.getData() == null) {
+                log.warn("Could not fetch technician details, using basic info");
+                return TechnicianDetails.builder()
+                        .userId(technicianUserId)
+                        .fullName("Technician")
+                        . phoneNumber(null)
+                        .build();
+            }
+
+            Map<String, Object> techData = technicianResponse.getData();
+
+            return TechnicianDetails.builder()
+                    .userId(technicianUserId)
+                    . fullName((String) techData.getOrDefault("fullName", "Technician"))
+                    .email((String) techData.get("email"))
+                    .phoneNumber((String) techData.get("phoneNumber"))
+                    . build();
+
+        } catch (BookingException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error validating technician from Auth Service: {}", e.getMessage());
+            throw new BookingException("Failed to validate technician.  Please try again.");
+        }
+    }
+
+    /**
+     * Increment technician's completed job count via Auth Service
+     */
+    private void incrementTechnicianJobs(String technicianUserId) {
+        try {
+            log.debug("Incrementing job count for technician: {}", technicianUserId);
+
+            ApiResponseWrapper<Void> response = authServiceClient.incrementTechnicianJobs(technicianUserId);
+
+            if (response != null && response.isSuccess()) {
+                log.info("Successfully incremented job count for technician:  {}", technicianUserId);
+            } else {
+                log.warn("Failed to increment job count for technician: {}. Will retry later.", technicianUserId);
+                // Don't throw exception - this is not critical for booking completion
+            }
+        } catch (Exception e) {
+            log.error("Error incrementing technician jobs: {}. Will retry later.", e.getMessage());
+            // Don't throw exception - this is not critical for booking completion
+        }
+    }
+
+    // ==================== HELPER CLASSES ====================
+
+    @lombok.Builder
+    @lombok.Data
+    private static class ServiceDetails {
+        private String serviceId;
+        private String serviceName;
+        private String categoryName;
+        private Double basePrice;
+        private Double taxPercentage;
+        private Double taxAmount;
+        private Double discountPercentage;
+        private Double discountAmount;
+        private Double finalPrice;
+        private String currency;
+        private Integer estimatedDurationMinutes;
+    }
+
+    @lombok.Builder
+    @lombok.Data
+    private static class TechnicianDetails {
+        private String userId;
+        private String fullName;
+        private String email;
+        private String phoneNumber;
+    }
+
     // ==================== HELPER METHODS ====================
 
     private Booking getBookingEntity(String bookingId) {
-        return bookingRepository. findById(bookingId)
+        return bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
     }
 
@@ -491,10 +702,10 @@ public class BookingServiceImpl implements BookingService {
     private void validateReschedulable(Booking booking) {
         List<BookingStatus> reschedulableStatuses = Arrays. asList(
                 BookingStatus.PENDING,
-                BookingStatus. ASSIGNED,
-                BookingStatus. CONFIRMED
+                BookingStatus.ASSIGNED,
+                BookingStatus.CONFIRMED
         );
-        if (!reschedulableStatuses.contains(booking.getStatus())) {
+        if (!reschedulableStatuses. contains(booking.getStatus())) {
             throw new InvalidStateException("Cannot reschedule booking at this stage");
         }
     }
@@ -515,7 +726,66 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private String generateOtp() {
-        return String.format("%06d", new Random().nextInt(1000000));
+        return String. format("%06d", new Random().nextInt(1000000));
+    }
+
+    private PricingDetails buildPricingDetails(ServiceDetails serviceDetails) {
+        return PricingDetails.builder()
+                .basePrice(serviceDetails.getBasePrice())
+                .taxPercentage(serviceDetails.getTaxPercentage())
+                .taxAmount(serviceDetails.getTaxAmount())
+                .discountPercentage(serviceDetails.getDiscountPercentage())
+                .discountAmount(serviceDetails.getDiscountAmount())
+                .finalPrice(serviceDetails.getFinalPrice())
+                .currency(serviceDetails.getCurrency() != null ? serviceDetails.getCurrency() : "INR")
+                .build();
+    }
+
+    private ServiceDetails getDefaultServiceDetails(String serviceId) {
+        log.warn("Using default service details for serviceId: {}", serviceId);
+        return ServiceDetails.builder()
+                .serviceId(serviceId)
+                .serviceName("Service")
+                .categoryName("General")
+                .basePrice(0.0)
+                .taxPercentage(18.0)
+                .taxAmount(0.0)
+                .discountPercentage(0.0)
+                .discountAmount(0.0)
+                .finalPrice(0.0)
+                .currency("INR")
+                .estimatedDurationMinutes(60)
+                .build();
+    }
+
+    private Double toDouble(Object value) {
+        if (value == null) return 0.0;
+        if (value instanceof Double) return (Double) value;
+        if (value instanceof Integer) return ((Integer) value).doubleValue();
+        if (value instanceof Long) return ((Long) value).doubleValue();
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                return 0.0;
+            }
+        }
+        return 0.0;
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null) return 0;
+        if (value instanceof Integer) return (Integer) value;
+        if (value instanceof Long) return ((Long) value).intValue();
+        if (value instanceof Double) return ((Double) value).intValue();
+        if (value instanceof String) {
+            try {
+                return Integer.parseInt((String) value);
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     // ==================== EVENT PUBLISHING ====================
@@ -531,25 +801,24 @@ public class BookingServiceImpl implements BookingService {
                     .userRole("CUSTOMER")
                     .bookingId(booking.getId())
                     .bookingNumber(booking.getBookingNumber())
-                    . bookingStatus(booking.getStatus().name())
+                    .bookingStatus(booking.getStatus().name())
                     .serviceId(booking.getServiceId())
                     .serviceName(booking.getServiceName())
                     .categoryName(booking.getCategoryName())
                     .technicianId(booking.getTechnicianId())
                     . technicianName(booking.getTechnicianName())
-                    .technicianPhone(booking. getTechnicianPhone())
+                    .technicianPhone(booking.getTechnicianPhone())
                     .scheduledDate(booking.getScheduledDate() != null ?
                             booking.getScheduledDate().toString() : null)
-                    .cancellationReason(cancellationReason)
+                    . cancellationReason(cancellationReason)
                     .rejectionReason(rejectionReason)
                     .build();
 
             eventPublisherService.publishBookingEvent(event);
 
         } catch (Exception e) {
-            log.error("Failed to publish event {} for booking {}:  {}",
+            log.error("Failed to publish event {} for booking {}: {}",
                     eventType, booking.getBookingNumber(), e.getMessage());
-            // Don't fail the main operation if event publishing fails
         }
     }
 }
