@@ -1,15 +1,18 @@
 package com.app.booking.service.impl;
 
 import com.app.booking.dto.request.*;
-import com.app.booking.dto.response.BookingResponse;
+import com.app.booking. dto.response. BookingResponse;
 import com.app.booking.dto.response.BookingStatsResponse;
+import com.app.booking.event.BookingEvent;
+import com.app.booking.event.EventType;
 import com.app.booking.exception.InvalidStateException;
-import com.app.booking.exception.ResourceNotFoundException;
-import com.app.booking. exception.UnauthorizedException;
+import com.app. booking.exception.ResourceNotFoundException;
+import com.app.booking.exception.UnauthorizedException;
 import com. app.booking.model.*;
 import com.app.booking. repository.BookingRepository;
 import com.app.booking.service. BookingService;
-import com. app.booking.util.BookingMapper;
+import com.app.booking.service.EventPublisherService;
+import com.app.booking.util.BookingMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,6 +31,7 @@ import java.util.stream. Collectors;
 public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
+    private final EventPublisherService eventPublisherService;
 
     // ==================== CUSTOMER OPERATIONS ====================
 
@@ -43,10 +47,9 @@ public class BookingServiceImpl implements BookingService {
                 .customerEmail(customerEmail)
                 .customerPhone(customerPhone)
                 .serviceId(request.getServiceId())
-                // Note: serviceName, categoryId, categoryName should ideally be fetched from catalog service
-                .serviceName("Service") // Placeholder - integrate with catalog service
-                .categoryName("Category") // Placeholder
-                .status(BookingStatus. PENDING)
+                .serviceName("Service") // TODO: Fetch from catalog service
+                .categoryName("Category") // TODO: Fetch from catalog service
+                .status(BookingStatus.PENDING)
                 .priority(request.getPriority() != null ? request.getPriority() : Priority.NORMAL)
                 .problemDescription(request.getProblemDescription())
                 .imageUrls(request.getImageUrls())
@@ -66,6 +69,9 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking created: {} by customer: {}", saved.getBookingNumber(), customerId);
+
+        // Publish BOOKING_CREATED event
+        publishEvent(saved, EventType.BOOKING_CREATED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -98,6 +104,9 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} rescheduled by customer {}", bookingId, customerId);
 
+        // Publish BOOKING_RESCHEDULED event
+        publishEvent(saved, EventType.BOOKING_RESCHEDULED, null, null);
+
         return BookingMapper.toResponse(saved);
     }
 
@@ -109,7 +118,7 @@ public class BookingServiceImpl implements BookingService {
         validateCustomerOwnership(booking, customerId);
         validateCancellable(booking);
 
-        booking.setStatus(BookingStatus. CANCELLED);
+        booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellation(CancellationDetails.builder()
                 .cancelledBy(customerId)
                 .cancelledByRole("CUSTOMER")
@@ -121,7 +130,10 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} cancelled by customer {}", bookingId, customerId);
 
-        return BookingMapper.toResponse(saved);
+        // Publish BOOKING_CANCELLED event
+        publishEvent(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
+
+        return BookingMapper. toResponse(saved);
     }
 
     @Override
@@ -139,7 +151,7 @@ public class BookingServiceImpl implements BookingService {
             throw new InvalidStateException("Booking has already been rated");
         }
 
-        booking.setRatingFeedback(RatingFeedback. builder()
+        booking.setRatingFeedback(RatingFeedback.builder()
                 .rating(request.getRating())
                 .feedback(request.getFeedback())
                 .ratedAt(Instant.now())
@@ -183,7 +195,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public Page<BookingResponse> getTechnicianBookingsPaged(String technicianId, Pageable pageable) {
-        return bookingRepository. findByTechnicianId(technicianId, pageable)
+        return bookingRepository.findByTechnicianId(technicianId, pageable)
                 .map(BookingMapper::toResponse);
     }
 
@@ -191,12 +203,12 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingResponse> getTechnicianActiveBookings(String technicianId) {
         List<BookingStatus> activeStatuses = Arrays.asList(
                 BookingStatus.ASSIGNED,
-                BookingStatus. CONFIRMED,
+                BookingStatus.CONFIRMED,
                 BookingStatus.IN_PROGRESS
         );
         return bookingRepository.findByTechnicianIdAndStatusIn(technicianId, activeStatuses)
                 .stream()
-                .map(BookingMapper::toResponse)
+                .map(BookingMapper:: toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -217,6 +229,9 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository. save(booking);
         log.info("Booking {} confirmed by technician {}", bookingId, technicianId);
+
+        // Publish BOOKING_CONFIRMED event
+        publishEvent(saved, EventType.BOOKING_CONFIRMED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -242,6 +257,9 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} rejected by technician {}", bookingId, technicianId);
 
+        // Publish BOOKING_REJECTED event
+        publishEvent(saved, EventType.BOOKING_REJECTED, null, reason);
+
         return BookingMapper.toResponse(saved);
     }
 
@@ -258,10 +276,13 @@ public class BookingServiceImpl implements BookingService {
 
         booking.setStatus(BookingStatus.IN_PROGRESS);
         booking.setStartedAt(Instant.now());
-        booking.setUpdatedAt(Instant. now());
+        booking.setUpdatedAt(Instant.now());
 
-        Booking saved = bookingRepository.save(booking);
+        Booking saved = bookingRepository. save(booking);
         log.info("Booking {} started by technician {}", bookingId, technicianId);
+
+        // Publish SERVICE_STARTED event
+        publishEvent(saved, EventType.SERVICE_STARTED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -278,7 +299,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // Verify OTP
-        if (booking.getCompletionOtp() == null || !booking.getCompletionOtp().equals(request.getOtp())) {
+        if (booking. getCompletionOtp() == null || !booking.getCompletionOtp().equals(request.getOtp())) {
             throw new InvalidStateException("Invalid completion OTP");
         }
 
@@ -287,10 +308,13 @@ public class BookingServiceImpl implements BookingService {
         booking.setCompletedAt(Instant.now());
         booking.setTechnicianNotes(request.getTechnicianNotes());
         booking.setCompletionImageUrls(request.getCompletionImageUrls());
-        booking.setUpdatedAt(Instant. now());
+        booking.setUpdatedAt(Instant.now());
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} completed by technician {}", bookingId, technicianId);
+
+        // Publish SERVICE_COMPLETED event
+        publishEvent(saved, EventType.SERVICE_COMPLETED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -299,7 +323,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<BookingResponse> getPendingBookings() {
-        return bookingRepository.findByStatus(BookingStatus.PENDING)
+        return bookingRepository. findByStatus(BookingStatus. PENDING)
                 .stream()
                 .map(BookingMapper::toResponse)
                 .collect(Collectors.toList());
@@ -310,7 +334,7 @@ public class BookingServiceImpl implements BookingService {
         return bookingRepository.findByStatus(status)
                 .stream()
                 .map(BookingMapper::toResponse)
-                .collect(Collectors.toList());
+                .collect(Collectors. toList());
     }
 
     @Override
@@ -324,7 +348,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse assignTechnician(String bookingId, AssignTechnicianRequest request, String managerId) {
         Booking booking = getBookingEntity(bookingId);
 
-        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus. REJECTED) {
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.REJECTED) {
             throw new InvalidStateException("Can only assign technician to pending or rejected bookings");
         }
 
@@ -338,6 +362,9 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} assigned to technician {} by manager {}", bookingId, request.getTechnicianId(), managerId);
+
+        // Publish TECHNICIAN_ASSIGNED event
+        publishEvent(saved, EventType. TECHNICIAN_ASSIGNED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -357,17 +384,20 @@ public class BookingServiceImpl implements BookingService {
             throw new InvalidStateException("Cannot reassign technician at this stage");
         }
 
-        booking. setTechnicianId(request.getTechnicianId());
+        booking.setTechnicianId(request.getTechnicianId());
         booking.setTechnicianName(request.getTechnicianName());
-        booking.setTechnicianPhone(request.getTechnicianPhone());
+        booking.setTechnicianPhone(request. getTechnicianPhone());
         booking.setAssignedBy(managerId);
-        booking.setAssignedAt(Instant.now());
+        booking.setAssignedAt(Instant. now());
         booking.setStatus(BookingStatus.ASSIGNED);
         booking.setConfirmedAt(null);
         booking.setUpdatedAt(Instant.now());
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} reassigned to technician {} by manager {}", bookingId, request.getTechnicianId(), managerId);
+
+        // Publish TECHNICIAN_ASSIGNED event
+        publishEvent(saved, EventType.TECHNICIAN_ASSIGNED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -393,6 +423,9 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} cancelled by manager {}", bookingId, managerId);
 
+        // Publish BOOKING_CANCELLED event
+        publishEvent(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
+
         return BookingMapper.toResponse(saved);
     }
 
@@ -409,14 +442,14 @@ public class BookingServiceImpl implements BookingService {
                 .assignedBookings(bookingRepository. countByStatus(BookingStatus. ASSIGNED))
                 .inProgressBookings(bookingRepository. countByStatus(BookingStatus. IN_PROGRESS))
                 .completedBookings(bookingRepository.countByStatus(BookingStatus.COMPLETED))
-                .cancelledBookings(bookingRepository. countByStatus(BookingStatus. CANCELLED))
+                .cancelledBookings(bookingRepository.countByStatus(BookingStatus. CANCELLED))
                 .bookingsByStatus(statusCounts)
                 .build();
     }
 
     @Override
     public List<BookingResponse> searchBookings(String query) {
-        return bookingRepository. searchBookings(query)
+        return bookingRepository.searchBookings(query)
                 .stream()
                 .map(BookingMapper::toResponse)
                 .collect(Collectors.toList());
@@ -439,7 +472,7 @@ public class BookingServiceImpl implements BookingService {
     // ==================== HELPER METHODS ====================
 
     private Booking getBookingEntity(String bookingId) {
-        return bookingRepository.findById(bookingId)
+        return bookingRepository. findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
     }
 
@@ -483,5 +516,40 @@ public class BookingServiceImpl implements BookingService {
 
     private String generateOtp() {
         return String.format("%06d", new Random().nextInt(1000000));
+    }
+
+    // ==================== EVENT PUBLISHING ====================
+
+    private void publishEvent(Booking booking, EventType eventType,
+                              String cancellationReason, String rejectionReason) {
+        try {
+            BookingEvent event = BookingEvent. builder()
+                    .eventType(eventType)
+                    .userId(booking.getCustomerId())
+                    .userEmail(booking.getCustomerEmail())
+                    .userName(booking.getCustomerName())
+                    .userRole("CUSTOMER")
+                    .bookingId(booking.getId())
+                    .bookingNumber(booking.getBookingNumber())
+                    . bookingStatus(booking.getStatus().name())
+                    .serviceId(booking.getServiceId())
+                    .serviceName(booking.getServiceName())
+                    .categoryName(booking.getCategoryName())
+                    .technicianId(booking.getTechnicianId())
+                    . technicianName(booking.getTechnicianName())
+                    .technicianPhone(booking. getTechnicianPhone())
+                    .scheduledDate(booking.getScheduledDate() != null ?
+                            booking.getScheduledDate().toString() : null)
+                    .cancellationReason(cancellationReason)
+                    .rejectionReason(rejectionReason)
+                    .build();
+
+            eventPublisherService.publishBookingEvent(event);
+
+        } catch (Exception e) {
+            log.error("Failed to publish event {} for booking {}:  {}",
+                    eventType, booking.getBookingNumber(), e.getMessage());
+            // Don't fail the main operation if event publishing fails
+        }
     }
 }

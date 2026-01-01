@@ -1,0 +1,12 @@
+package com.app.booking.event;
+
+public enum EventType {
+    BOOKING_CREATED,
+    TECHNICIAN_ASSIGNED,
+    BOOKING_CONFIRMED,
+    BOOKING_REJECTED,
+    SERVICE_STARTED,
+    SERVICE_COMPLETED,
+    BOOKING_CANCELLED,
+    BOOKING_RESCHEDULED
+}
