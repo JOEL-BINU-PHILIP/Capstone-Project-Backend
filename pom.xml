@@ -62,7 +62,7 @@
         <module>auth-service</module>
         <module>service-registry</module>
         <module>service-registry</module>
-        <module>technician-service</module>
+        <module>service-request-service</module>
     </modules>
 
 </project>
