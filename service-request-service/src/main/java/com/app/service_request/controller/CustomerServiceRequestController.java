@@ -1,7 +1,10 @@
 package com.app.service_request.controller;
 
+import com.app.service_request.dto.request.CreateServiceRequestDTO;
+import com.app.service_request.dto.response.ServiceRequestResponseDTO;
 import com.app.service_request.model.ServiceRequest;
 import com.app.service_request.service.ServiceRequestService;
+import com.app.service_request.util.ServiceRequestMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -18,25 +21,33 @@ public class CustomerServiceRequestController {
 
     @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
-    public ServiceRequest createRequest(
-            @RequestBody ServiceRequest request,
+    public ServiceRequestResponseDTO createRequest(
+            @RequestBody CreateServiceRequestDTO dto,
             Authentication authentication
     ) {
-        return service.create(request, authentication.getName());
+        ServiceRequest entity = ServiceRequestMapper.toEntity(dto);
+        return ServiceRequestMapper.toResponse(
+                service.create(entity, authentication.getName())
+        );
     }
 
     @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping
-    public List<ServiceRequest> myRequests(Authentication authentication) {
-        return service.customerRequests(authentication.getName());
+    public List<ServiceRequestResponseDTO> myRequests(Authentication authentication) {
+        return service.customerRequests(authentication.getName())
+                .stream()
+                .map(ServiceRequestMapper::toResponse)
+                .toList();
     }
 
     @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping("/{id}/cancel")
-    public ServiceRequest cancelRequest(
+    public ServiceRequestResponseDTO cancelRequest(
             @PathVariable String id,
             Authentication authentication
     ) {
-        return service.cancel(id, authentication.getName());
+        return ServiceRequestMapper.toResponse(
+                service.cancel(id, authentication.getName())
+        );
     }
 }
