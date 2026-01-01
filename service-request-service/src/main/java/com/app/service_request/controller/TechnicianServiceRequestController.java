@@ -1,14 +1,12 @@
 package com.app.service_request.controller;
 
 import com.app.service_request.model.ServiceRequest;
-import com.app.service_request.model.ServiceRequestStatus;
-import com.app.service_request.repository.ServiceRequestRepository;
+import com.app.service_request.service.ServiceRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -16,14 +14,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TechnicianServiceRequestController {
 
-    private final ServiceRequestRepository repository;
+    private final ServiceRequestService service;
 
     @PreAuthorize("hasRole('TECHNICIAN')")
     @GetMapping
     public List<ServiceRequest> myAssignments(Authentication authentication) {
-        return repository.findByAssignedTechnicianIdOrderByAssignedAtDesc(
-                authentication.getName()
-        );
+        return service.technicianRequests(authentication.getName());
     }
 
     @PreAuthorize("hasRole('TECHNICIAN')")
@@ -32,18 +28,7 @@ public class TechnicianServiceRequestController {
             @PathVariable String id,
             Authentication authentication
     ) {
-        ServiceRequest request = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
-        if (!authentication.getName().equals(request.getAssignedTechnicianId())) {
-            throw new RuntimeException("Not assigned to you");
-        }
-
-        request.setStatus(ServiceRequestStatus.IN_PROGRESS);
-        request.setStartedAt(Instant.now());
-        request.setUpdatedAt(Instant.now());
-
-        return repository.save(request);
+        return service.start(id, authentication.getName());
     }
 
     @PreAuthorize("hasRole('TECHNICIAN')")
@@ -52,17 +37,6 @@ public class TechnicianServiceRequestController {
             @PathVariable String id,
             Authentication authentication
     ) {
-        ServiceRequest request = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
-        if (!authentication.getName().equals(request.getAssignedTechnicianId())) {
-            throw new RuntimeException("Not assigned to you");
-        }
-
-        request.setStatus(ServiceRequestStatus.COMPLETED);
-        request.setCompletedAt(Instant.now());
-        request.setUpdatedAt(Instant.now());
-
-        return repository.save(request);
+        return service.complete(id, authentication.getName());
     }
 }

@@ -1,25 +1,20 @@
 package com.app.service_request.controller;
 
 import com.app.service_request.model.ServiceRequest;
-import com.app.service_request.model.ServiceRequestStatus;
-import com.app.service_request.repository.ServiceRequestRepository;
-import com.app.service_request.security.JwtUtil;
+import com.app.service_request.service.ServiceRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/service-requests/customer")
 @RequiredArgsConstructor
 public class CustomerServiceRequestController {
 
-    private final ServiceRequestRepository repository;
-    private final JwtUtil jwtUtil;
+    private final ServiceRequestService service;
 
     @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
@@ -27,23 +22,13 @@ public class CustomerServiceRequestController {
             @RequestBody ServiceRequest request,
             Authentication authentication
     ) {
-        request.setId(null);
-        request.setRequestNumber("SR-" + UUID.randomUUID());
-        request.setCustomerId(authentication.getName());
-        request.setStatus(ServiceRequestStatus.REQUESTED);
-        request.setRequestedAt(Instant.now());
-        request.setCreatedAt(Instant.now());
-        request.setUpdatedAt(Instant.now());
-
-        return repository.save(request);
+        return service.create(request, authentication.getName());
     }
 
     @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping
     public List<ServiceRequest> myRequests(Authentication authentication) {
-        return repository.findByCustomerIdOrderByCreatedAtDesc(
-                authentication.getName()
-        );
+        return service.customerRequests(authentication.getName());
     }
 
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -52,22 +37,6 @@ public class CustomerServiceRequestController {
             @PathVariable String id,
             Authentication authentication
     ) {
-        ServiceRequest request = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
-        if (!request.getCustomerId().equals(authentication.getName())) {
-            throw new RuntimeException("Not your request");
-        }
-
-        if (request.getStatus() == ServiceRequestStatus.IN_PROGRESS) {
-            throw new RuntimeException("Cannot cancel after work has started");
-        }
-
-        request.setStatus(ServiceRequestStatus.CANCELLED);
-        request.setCancelledAt(Instant.now());
-        request.setCancelledBy(authentication.getName());
-        request.setUpdatedAt(Instant.now());
-
-        return repository.save(request);
+        return service.cancel(id, authentication.getName());
     }
 }
