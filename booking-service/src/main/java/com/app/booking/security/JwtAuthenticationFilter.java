@@ -1,21 +1,21 @@
-package com.app. booking.security;
+package com.app.booking.security;
 
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import jakarta.servlet. ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j. Slf4j;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.filter. OncePerRequestFilter;
+import org.springframework.web. filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.stream. Collectors;
 
 @Slf4j
 @Component
@@ -34,20 +34,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = extractTokenFromRequest(request);
 
-            if (token != null && jwtUtil.validateToken(token)) {
+            if (token != null && jwtUtil. validateToken(token)) {
                 String username = jwtUtil.extractUsername(token);
-                List<String> roles = jwtUtil.extractRoles(token);
+                List<String> roles = jwtUtil. extractRoles(token);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
                     List<SimpleGrantedAuthority> authorities = roles.stream()
                             .map(SimpleGrantedAuthority::new)
                             .collect(Collectors.toList());
 
-                    var authentication = new UsernamePasswordAuthenticationToken(
-                            username,
-                            null,
-                            authorities
-                    );
+                    // Explicitly declare the type instead of using 'var'
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    username,
+                                    null,
+                                    authorities
+                            );
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     log.debug("Authenticated user: {} with roles: {}", username, roles);
