@@ -11,8 +11,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PricingDetails {
     private Double basePrice;
+    private Double taxPercentage;
     private Double taxAmount;
+    private Double discountPercentage;
     private Double discountAmount;
     private Double finalPrice;
-    private String currency;
+
+    @Builder.Default
+    private String currency = "INR";
 }

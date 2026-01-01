@@ -1,9 +1,9 @@
-package com. app.booking.security;
+package com.app.booking.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context. annotation.Bean;
 import org. springframework.context.annotation.Configuration;
-import org.springframework.security. config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security. config.annotation.method.configuration. EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -27,7 +27,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                .cors(cors -> cors. configurationSource(corsConfigurationSource()))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy. STATELESS)
@@ -36,7 +36,11 @@ public class SecurityConfig {
                         // Actuator endpoints
                         .requestMatchers("/actuator/**").permitAll()
 
-                        // All booking endpoints require authentication
+                        // ========== INTERNAL APIs (NEW) ==========
+                        // These are called by other microservices (Billing)
+                        .requestMatchers("/api/internal/**").permitAll()
+
+                        // All other booking endpoints require authentication
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
@@ -52,7 +56,11 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "http://localhost:4200"
+                "http://localhost:4200",
+                "http://localhost:8081",  // Auth Service
+                "http://localhost:8082",  // Catalog Service
+                "http://localhost:8084",  // Billing Service
+                "http://localhost:8085"   // Notification Service
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
