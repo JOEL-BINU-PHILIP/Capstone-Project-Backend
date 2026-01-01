@@ -62,6 +62,8 @@
         <module>service-registry</module>
         <module>service-registry</module>
         <module>booking-service</module>
+        <module>billing-service</module>
+        <module>billing-service</module>
     </modules>
 
 </project>
