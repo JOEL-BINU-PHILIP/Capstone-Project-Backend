@@ -1,17 +1,19 @@
-package com.app.service_catalog.controller;
+package com.app.service_catalog. controller;
 
-import com.app.service_catalog.dto.request.CreateCategoryRequest;
-import com.app.service_catalog.dto.request.ReorderCategoryRequest;
+import com.app. service_catalog.dto.request.CreateCategoryRequest;
+import com. app.service_catalog.dto. request.ReorderCategoryRequest;
 import com.app.service_catalog.dto.request.UpdateCategoryRequest;
-import com.app.service_catalog.dto.request.UpdateCategoryStatusRequest;
-import com.app.service_catalog.model.ServiceCategory;
-import com.app.service_catalog.service.CategoryService;
+import com.app.service_catalog. dto.request.UpdateCategoryStatusRequest;
+import com.app. service_catalog.model.ServiceCategory;
+import com.app. service_catalog.service.CategoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access. prepost.PreAuthorize;
+import org.springframework.web. bind.annotation.*;
 
-import java.util.List;
+import java. util.List;
 
 @RestController
 @RequestMapping("/api/services/categories")
@@ -20,10 +22,13 @@ public class CategoryController {
 
     private final CategoryService categoryService;
 
-    // CREATE
-    @PostMapping
-    public ServiceCategory create(@Valid @RequestBody CreateCategoryRequest request) {
+    // =====================
+    // ADMIN ONLY
+    // =====================
 
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceCategory> create(@Valid @RequestBody CreateCategoryRequest request) {
         ServiceCategory category = ServiceCategory.builder()
                 .name(request.getName())
                 .description(request.getDescription())
@@ -31,56 +36,61 @@ public class CategoryController {
                 .displayOrder(request.getDisplayOrder())
                 .build();
 
-        return categoryService.createCategory(category);
-    }
-
-    // READ ALL
-    @GetMapping
-    public List<ServiceCategory> getAll() {
-        return categoryService.getAllCategories();
-    }
-
-    // READ ACTIVE
-    @GetMapping("/active")
-    public List<ServiceCategory> getActive() {
-        return categoryService.getActiveCategories();
-    }
-
-    // READ BY ID
-    @GetMapping("/{id}")
-    public ServiceCategory getById(@PathVariable String id) {
-        return categoryService.getCategoryById(id);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(categoryService. createCategory(category));
     }
 
     @PutMapping("/{id}")
-    public ServiceCategory update(
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceCategory> update(
             @PathVariable("id") String id,
             @RequestBody UpdateCategoryRequest request) {
-
-        return categoryService.updateCategory(id, request);
+        return ResponseEntity.ok(categoryService. updateCategory(id, request));
     }
 
-
-    // TOGGLE STATUS
     @PutMapping("/{id}/status")
-    public ServiceCategory updateStatus(
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceCategory> updateStatus(
             @PathVariable("id") String id,
             @RequestBody UpdateCategoryStatusRequest request) {
-
-        return categoryService.updateCategoryStatus(id, request.isActive());
+        return ResponseEntity. ok(categoryService.updateCategoryStatus(id, request. isActive()));
     }
 
-
-    // REORDER
     @PutMapping("/reorder")
-    public void reorder(@RequestBody List<ReorderCategoryRequest> requests) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reorder(@RequestBody List<ReorderCategoryRequest> requests) {
         categoryService.reorderCategories(requests);
+        return ResponseEntity.ok().build();
     }
 
-    // DELETE
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable("id") String id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable("id") String id) {
         categoryService.deleteCategory(id);
+        return ResponseEntity. noContent().build();
     }
 
+    // =====================
+    // ADMIN & SERVICE MANAGER
+    // =====================
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
+    public ResponseEntity<List<ServiceCategory>> getAll() {
+        return ResponseEntity.ok(categoryService. getAllCategories());
+    }
+
+    // =====================
+    // PUBLIC - No auth required
+    // =====================
+
+    @GetMapping("/active")
+    public ResponseEntity<List<ServiceCategory>> getActive() {
+        return ResponseEntity. ok(categoryService.getActiveCategories());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ServiceCategory> getById(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.getCategoryById(id));
+    }
 }

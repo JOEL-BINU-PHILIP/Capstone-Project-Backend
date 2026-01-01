@@ -13,7 +13,6 @@
     <artifactId>Capstone_Service_Management_System</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-
     <!-- ========================= -->
     <!-- GLOBAL PROPERTIES -->
     <!-- ========================= -->
@@ -62,7 +61,7 @@
         <module>auth-service</module>
         <module>service-registry</module>
         <module>service-registry</module>
-        <module>service-request-service</module>
+        <module>booking-service</module>
     </modules>
 
 </project>
