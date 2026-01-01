@@ -1,15 +1,14 @@
-package com.app.billing. dto.response;
+package com.app.billing.dto. response;
 
-import com. app.billing.model.Invoice;
 import com.app.billing.model.InvoiceStatus;
-import lombok. AllArgsConstructor;
+import com.app.billing.model.PaymentMethod;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok. Data;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java. time. Instant;
+import java.time.Instant;
 import java.time.LocalDate;
-import java. util.List;
 
 @Data
 @Builder
@@ -20,31 +19,27 @@ public class InvoiceResponse {
     private String id;
     private String invoiceNumber;
 
-    // Booking Reference
+    // Booking
     private String bookingId;
     private String bookingNumber;
 
-    // Customer Info
+    // Customer
     private String customerId;
     private String customerName;
     private String customerEmail;
     private String customerPhone;
-    private String customerAddress;
 
-    // Service Info
+    // Service
     private String serviceId;
     private String serviceName;
     private String categoryName;
 
-    // Technician Info
+    // Technician
     private String technicianId;
     private String technicianName;
 
-    // Line Items
-    private List<Invoice.LineItem> lineItems;
-
     // Pricing
-    private Double subtotal;
+    private Double basePrice;
     private Double taxPercentage;
     private Double taxAmount;
     private Double discountPercentage;
@@ -52,17 +47,17 @@ public class InvoiceResponse {
     private Double totalAmount;
     private String currency;
 
-    // Payment Tracking
-    private Double amountPaid;
-    private Double balanceDue;
-
     // Status
     private InvoiceStatus status;
+    private boolean isPaid;
+
+    // Payment Info
+    private PaymentMethod paymentMethod;
+    private Instant paidAt;
 
     // Dates
     private LocalDate invoiceDate;
     private LocalDate dueDate;
-    private Instant paidAt;
 
     // Notes
     private String notes;

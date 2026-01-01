@@ -1,31 +1,32 @@
 package com.app.billing. service.impl;
 
 import com. app.billing.dto.request. CreateInvoiceRequest;
-import com.app.billing.dto. request.UpdateInvoiceRequest;
+import com.app.billing.dto. request.PayInvoiceRequest;
 import com.app.billing. dto.response.InvoiceResponse;
 import com.app.billing.dto.response.RevenueReportResponse;
 import com. app.billing.exception.BillingException;
 import com. app.billing.exception.DuplicateInvoiceException;
-import com.app.billing.exception.ResourceNotFoundException;
-import com.app. billing.model.Invoice;
+import com.app.billing. exception.ResourceNotFoundException;
+import com. app.billing.model.Invoice;
 import com.app.billing.model.InvoiceStatus;
-import com.app.billing. repository.InvoiceRepository;
+import com.app. billing.repository.InvoiceRepository;
 import com.app.billing.service. InvoiceService;
-import com.app.billing.util.InvoiceMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction. annotation.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time. Instant;
-import java.time. LocalDate;
-import java.time.Year;
+import java.time.LocalDate;
+import java. time.Year;
 import java.time.ZoneId;
-import java.util.*;
-import java.util.stream. Collectors;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,31 +35,25 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
 
+    private static final Double DEFAULT_TAX_PERCENTAGE = 18.0;
+
     @Override
     @Transactional
     public InvoiceResponse createInvoice(CreateInvoiceRequest request, String createdBy) {
 
         // Check if invoice already exists for this booking
         if (invoiceRepository.existsByBookingId(request.getBookingId())) {
-            throw new DuplicateInvoiceException("Invoice already exists for booking: " + request.getBookingId());
+            throw new DuplicateInvoiceException("Invoice already exists for booking:  " + request.getBookingId());
         }
 
-        // Calculate tax and discount amounts
-        double taxAmount = request.getSubtotal() * (request.getTaxPercentage() != null ? request.getTaxPercentage() / 100 : 0);
-        double discountAmount = request.getSubtotal() * (request.getDiscountPercentage() != null ? request.getDiscountPercentage() / 100 : 0);
+        // Calculate pricing
+        double basePrice = request.getBasePrice();
+        double taxPercentage = request.getTaxPercentage() != null ? request.getTaxPercentage() : DEFAULT_TAX_PERCENTAGE;
+        double discountPercentage = request.getDiscountPercentage() != null ? request.getDiscountPercentage() : 0.0;
 
-        // Build line items
-        List<Invoice.LineItem> lineItems = new ArrayList<>();
-        if (request.getLineItems() != null) {
-            lineItems = request.getLineItems().stream()
-                    .map(item -> Invoice.LineItem.builder()
-                            .description(item.getDescription())
-                            .quantity(item.getQuantity() != null ? item.getQuantity() : 1)
-                            .unitPrice(item.getUnitPrice())
-                            .amount(item.getUnitPrice() * (item.getQuantity() != null ? item.getQuantity() : 1))
-                            .build())
-                    .collect(Collectors.toList());
-        }
+        double taxAmount = basePrice * (taxPercentage / 100);
+        double discountAmount = basePrice * (discountPercentage / 100);
+        double totalAmount = basePrice + taxAmount - discountAmount;
 
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(generateInvoiceNumber())
@@ -68,142 +63,111 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .customerName(request.getCustomerName())
                 .customerEmail(request.getCustomerEmail())
                 .customerPhone(request. getCustomerPhone())
-                .customerAddress(request.getCustomerAddress())
                 .serviceId(request.getServiceId())
                 .serviceName(request.getServiceName())
                 .categoryName(request.getCategoryName())
                 .technicianId(request.getTechnicianId())
                 .technicianName(request.getTechnicianName())
-                .lineItems(lineItems)
-                .subtotal(request.getSubtotal())
-                .taxPercentage(request.getTaxPercentage() != null ? request.getTaxPercentage() : 0.0)
+                .basePrice(basePrice)
+                .taxPercentage(taxPercentage)
                 .taxAmount(taxAmount)
-                .discountPercentage(request.getDiscountPercentage() != null ? request.getDiscountPercentage() : 0.0)
+                .discountPercentage(discountPercentage)
                 .discountAmount(discountAmount)
-                .totalAmount(request.getTotalAmount())
-                .currency(request.getCurrency() != null ? request.getCurrency() : "INR")
-                .amountPaid(0.0)
-                .balanceDue(request.getTotalAmount())
-                .status(InvoiceStatus.PENDING)
+                .totalAmount(totalAmount)
+                .currency("INR")
+                .status(InvoiceStatus. PENDING)
                 .invoiceDate(LocalDate.now())
-                .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDate.now().plusDays(7))
+                .dueDate(LocalDate.now().plusDays(7))
                 .notes(request.getNotes())
                 .createdBy(createdBy)
                 .build();
 
         Invoice saved = invoiceRepository.save(invoice);
-        log.info("Invoice created:  {} for booking: {}", saved.getInvoiceNumber(), request.getBookingId());
+        log.info("Invoice created:  {} for booking: {}, total: {}",
+                saved.getInvoiceNumber(), request.getBookingId(), totalAmount);
 
-        return InvoiceMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
     public InvoiceResponse getInvoiceById(String invoiceId) {
-        return InvoiceMapper.toResponse(getInvoiceEntity(invoiceId));
+        return toResponse(getInvoiceEntity(invoiceId));
     }
 
     @Override
     public InvoiceResponse getInvoiceByNumber(String invoiceNumber) {
         Invoice invoice = invoiceRepository.findByInvoiceNumber(invoiceNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found:  " + invoiceNumber));
-        return InvoiceMapper.toResponse(invoice);
+        return toResponse(invoice);
     }
 
     @Override
     public InvoiceResponse getInvoiceByBookingId(String bookingId) {
         Invoice invoice = invoiceRepository.findByBookingId(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found for booking: " + bookingId));
-        return InvoiceMapper.toResponse(invoice);
+        return toResponse(invoice);
     }
 
     @Override
     public List<InvoiceResponse> getCustomerInvoices(String customerId) {
         return invoiceRepository.findByCustomerIdOrderByCreatedAtDesc(customerId)
                 .stream()
-                .map(InvoiceMapper::toResponse)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Page<InvoiceResponse> getCustomerInvoicesPaged(String customerId, Pageable pageable) {
-        return invoiceRepository. findByCustomerId(customerId, pageable)
-                .map(InvoiceMapper::toResponse);
+        return invoiceRepository.findByCustomerId(customerId, pageable)
+                .map(this::toResponse);
     }
 
     @Override
     public List<InvoiceResponse> getInvoicesByStatus(InvoiceStatus status) {
         return invoiceRepository.findByStatus(status)
                 .stream()
-                .map(InvoiceMapper::toResponse)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Page<InvoiceResponse> getAllInvoicesPaged(Pageable pageable) {
         return invoiceRepository.findAll(pageable)
-                .map(InvoiceMapper::toResponse);
-    }
-
-    @Override
-    public List<InvoiceResponse> getOverdueInvoices() {
-        return invoiceRepository.findOverdueInvoices(LocalDate.now())
-                .stream()
-                .map(InvoiceMapper::toResponse)
-                .collect(Collectors.toList());
+                .map(this::toResponse);
     }
 
     @Override
     @Transactional
-    public InvoiceResponse updateInvoice(String invoiceId, UpdateInvoiceRequest request) {
+    public InvoiceResponse payInvoice(String invoiceId, PayInvoiceRequest request, String paidBy) {
         Invoice invoice = getInvoiceEntity(invoiceId);
 
-        if (invoice.getStatus() == InvoiceStatus.PAID || invoice.getStatus() == InvoiceStatus.CANCELLED) {
-            throw new BillingException("Cannot update paid or cancelled invoice");
+        // Validate
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new BillingException("Invoice is already paid");
         }
 
-        if (request.getDiscountPercentage() != null) {
-            invoice.setDiscountPercentage(request.getDiscountPercentage());
-            double discountAmount = invoice.getSubtotal() * request.getDiscountPercentage() / 100;
-            invoice. setDiscountAmount(discountAmount);
-            double newTotal = invoice.getSubtotal() + invoice.getTaxAmount() - discountAmount;
-            invoice. setTotalAmount(newTotal);
-            invoice.setBalanceDue(newTotal - invoice.getAmountPaid());
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw new BillingException("Cannot pay a cancelled invoice");
         }
 
-        if (request.getDueDate() != null) {
-            invoice.setDueDate(request.getDueDate());
-        }
+        // Mark as paid
+        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setPaymentMethod(request.getPaymentMethod());
+        invoice.setPaidAt(Instant.now());
+        invoice.setPaidBy(paidBy);
 
         if (request.getNotes() != null) {
-            invoice.setNotes(request. getNotes());
+            String existingNotes = invoice.getNotes() != null ? invoice.getNotes() + "\n" : "";
+            invoice.setNotes(existingNotes + "Payment note: " + request.getNotes());
         }
 
-        if (request.getTermsAndConditions() != null) {
-            invoice.setTermsAndConditions(request.getTermsAndConditions());
-        }
-
-        invoice.setUpdatedAt(Instant.now());
-        Invoice saved = invoiceRepository.save(invoice);
-
-        log.info("Invoice updated: {}", invoiceId);
-        return InvoiceMapper.toResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public InvoiceResponse updateInvoiceStatus(String invoiceId, InvoiceStatus status) {
-        Invoice invoice = getInvoiceEntity(invoiceId);
-        invoice.setStatus(status);
-        invoice.setUpdatedAt(Instant.now());
-
-        if (status == InvoiceStatus. PAID) {
-            invoice.setPaidAt(Instant.now());
-        }
+        invoice. setUpdatedAt(Instant.now());
 
         Invoice saved = invoiceRepository.save(invoice);
-        log.info("Invoice {} status updated to: {}", invoiceId, status);
+        log.info("Invoice {} marked as PAID by {}, method: {}",
+                invoice.getInvoiceNumber(), paidBy, request.getPaymentMethod());
 
-        return InvoiceMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -212,44 +176,22 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = getInvoiceEntity(invoiceId);
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new BillingException("Cannot cancel a paid invoice.  Use refund instead.");
+            throw new BillingException("Cannot cancel a paid invoice");
+        }
+
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw new BillingException("Invoice is already cancelled");
         }
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
-        invoice.setNotes(invoice.getNotes() != null ?
-                invoice.getNotes() + "\nCancellation reason: " + reason :
-                "Cancellation reason: " + reason);
+        String existingNotes = invoice.getNotes() != null ? invoice.getNotes() + "\n" : "";
+        invoice.setNotes(existingNotes + "Cancellation reason: " + reason);
         invoice.setUpdatedAt(Instant.now());
 
         Invoice saved = invoiceRepository.save(invoice);
-        log.info("Invoice {} cancelled.  Reason: {}", invoiceId, reason);
+        log.info("Invoice {} cancelled.  Reason: {}", invoice.getInvoiceNumber(), reason);
 
-        return InvoiceMapper.toResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public void updateInvoicePayment(String invoiceId, Double amountPaid) {
-        Invoice invoice = getInvoiceEntity(invoiceId);
-
-        double newAmountPaid = invoice.getAmountPaid() + amountPaid;
-        invoice.setAmountPaid(newAmountPaid);
-        invoice.setBalanceDue(invoice.getTotalAmount() - newAmountPaid);
-
-        // Update status based on payment
-        if (newAmountPaid >= invoice.getTotalAmount()) {
-            invoice. setStatus(InvoiceStatus. PAID);
-            invoice.setPaidAt(Instant.now());
-            invoice.setBalanceDue(0.0);
-        } else if (newAmountPaid > 0) {
-            invoice.setStatus(InvoiceStatus. PARTIALLY_PAID);
-        }
-
-        invoice.setUpdatedAt(Instant.now());
-        invoiceRepository.save(invoice);
-
-        log.info("Invoice {} payment updated. Amount paid: {}, Balance due: {}",
-                invoiceId, newAmountPaid, invoice.getBalanceDue());
+        return toResponse(saved);
     }
 
     @Override
@@ -265,30 +207,26 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .mapToDouble(Invoice::getTotalAmount)
                 .sum();
 
-        double totalPaid = invoices.stream()
-                .mapToDouble(Invoice::getAmountPaid)
+        double collectedRevenue = invoices.stream()
+                .filter(inv -> inv.getStatus() == InvoiceStatus.PAID)
+                .mapToDouble(Invoice::getTotalAmount)
                 .sum();
 
-        double totalPending = invoices.stream()
-                .filter(inv -> inv.getStatus() == InvoiceStatus.PENDING || inv.getStatus() == InvoiceStatus.PARTIALLY_PAID)
-                .mapToDouble(Invoice::getBalanceDue)
-                .sum();
-
-        double totalOverdue = invoices.stream()
-                .filter(inv -> inv.getStatus() == InvoiceStatus.OVERDUE)
-                .mapToDouble(Invoice::getBalanceDue)
+        double pendingRevenue = invoices.stream()
+                .filter(inv -> inv.getStatus() == InvoiceStatus.PENDING)
+                .mapToDouble(Invoice::getTotalAmount)
                 .sum();
 
         // Count by status
-        Map<String, Long> statusCounts = invoices.stream()
+        Map<String, Long> invoicesByStatus = invoices.stream()
                 .collect(Collectors.groupingBy(
                         inv -> inv.getStatus().name(),
-                        Collectors.counting()
+                        Collectors. counting()
                 ));
 
-        // Revenue by category
+        // Revenue by category (only paid invoices)
         Map<String, Double> revenueByCategory = invoices. stream()
-                .filter(inv -> inv.getStatus() != InvoiceStatus.CANCELLED)
+                .filter(inv -> inv.getStatus() == InvoiceStatus.PAID)
                 .collect(Collectors.groupingBy(
                         inv -> inv.getCategoryName() != null ? inv.getCategoryName() : "Uncategorized",
                         Collectors.summingDouble(Invoice:: getTotalAmount)
@@ -296,53 +234,71 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         return RevenueReportResponse.builder()
                 .totalRevenue(totalRevenue)
-                .totalPaid(totalPaid)
-                .totalPending(totalPending)
-                .totalOverdue(totalOverdue)
+                .collectedRevenue(collectedRevenue)
+                .pendingRevenue(pendingRevenue)
                 .totalInvoices((long) invoices.size())
-                .paidInvoices(statusCounts.getOrDefault(InvoiceStatus.PAID. name(), 0L))
-                .pendingInvoices(statusCounts.getOrDefault(InvoiceStatus.PENDING.name(), 0L))
-                .overdueInvoices(statusCounts. getOrDefault(InvoiceStatus.OVERDUE.name(), 0L))
+                .paidInvoices(invoicesByStatus.getOrDefault(InvoiceStatus.PAID. name(), 0L))
+                .pendingInvoices(invoicesByStatus.getOrDefault(InvoiceStatus.PENDING. name(), 0L))
+                .cancelledInvoices(invoicesByStatus.getOrDefault(InvoiceStatus.CANCELLED.name(), 0L))
+                .invoicesByStatus(invoicesByStatus)
                 .revenueByCategory(revenueByCategory)
-                .periodStart(startDate. toString())
-                .periodEnd(endDate.toString())
+                .periodStart(startDate.toString())
+                .periodEnd(endDate. toString())
                 .build();
     }
 
     @Override
     public List<InvoiceResponse> searchInvoices(String query) {
-        return invoiceRepository.searchInvoices(query)
+        return invoiceRepository. searchInvoices(query)
                 .stream()
-                .map(InvoiceMapper::toResponse)
-                .collect(Collectors. toList());
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
-    @Override
-    @Scheduled(cron = "0 0 1 * * *") // Run daily at 1 AM
-    @Transactional
-    public void markOverdueInvoices() {
-        List<Invoice> overdueInvoices = invoiceRepository.findOverdueInvoices(LocalDate. now());
+    // ==================== HELPER METHODS ====================
 
-        for (Invoice invoice : overdueInvoices) {
-            invoice.setStatus(InvoiceStatus. OVERDUE);
-            invoice.setUpdatedAt(Instant.now());
-        }
-
-        if (! overdueInvoices.isEmpty()) {
-            invoiceRepository.saveAll(overdueInvoices);
-            log.info("Marked {} invoices as overdue", overdueInvoices.size());
-        }
-    }
-
-    // Helper methods
     private Invoice getInvoiceEntity(String invoiceId) {
         return invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found:  " + invoiceId));
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + invoiceId));
     }
 
     private String generateInvoiceNumber() {
         String year = String.valueOf(Year.now().getValue());
         String random = String.format("%05d", new Random().nextInt(100000));
         return "INV-" + year + "-" + random;
+    }
+
+    private InvoiceResponse toResponse(Invoice invoice) {
+        return InvoiceResponse.builder()
+                .id(invoice.getId())
+                .invoiceNumber(invoice.getInvoiceNumber())
+                .bookingId(invoice.getBookingId())
+                .bookingNumber(invoice.getBookingNumber())
+                .customerId(invoice. getCustomerId())
+                .customerName(invoice.getCustomerName())
+                .customerEmail(invoice.getCustomerEmail())
+                .customerPhone(invoice.getCustomerPhone())
+                .serviceId(invoice.getServiceId())
+                .serviceName(invoice.getServiceName())
+                .categoryName(invoice.getCategoryName())
+                .technicianId(invoice.getTechnicianId())
+                .technicianName(invoice.getTechnicianName())
+                .basePrice(invoice.getBasePrice())
+                .taxPercentage(invoice.getTaxPercentage())
+                .taxAmount(invoice.getTaxAmount())
+                .discountPercentage(invoice.getDiscountPercentage())
+                .discountAmount(invoice.getDiscountAmount())
+                .totalAmount(invoice.getTotalAmount())
+                .currency(invoice.getCurrency())
+                .status(invoice.getStatus())
+                .isPaid(invoice.getStatus() == InvoiceStatus.PAID)
+                .paymentMethod(invoice.getPaymentMethod())
+                .paidAt(invoice.getPaidAt())
+                .invoiceDate(invoice.getInvoiceDate())
+                .dueDate(invoice.getDueDate())
+                .notes(invoice.getNotes())
+                .createdAt(invoice.getCreatedAt())
+                .updatedAt(invoice.getUpdatedAt())
+                .build();
     }
 }

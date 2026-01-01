@@ -1,11 +1,8 @@
-package com.app.billing.model;
+package com.app.billing. model;
 
 public enum PaymentMethod {
     CASH,
-    CREDIT_CARD,
-    DEBIT_CARD,
-    UPI,
-    NET_BANKING,
-    WALLET,
-    CHEQUE
+    ONLINE,         // Generic online payment
+    CARD,
+    UPI
 }

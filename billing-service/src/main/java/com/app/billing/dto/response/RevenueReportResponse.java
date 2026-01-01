@@ -14,21 +14,19 @@ import java.util.Map;
 public class RevenueReportResponse {
 
     // Summary
-    private Double totalRevenue;
-    private Double totalPaid;
-    private Double totalPending;
-    private Double totalOverdue;
+    private Double totalRevenue;            // All non-cancelled invoices
+    private Double collectedRevenue;        // Paid invoices only
+    private Double pendingRevenue;          // Pending invoices
 
     // Counts
     private Long totalInvoices;
     private Long paidInvoices;
     private Long pendingInvoices;
-    private Long overdueInvoices;
+    private Long cancelledInvoices;
 
     // Breakdowns
-    private Map<String, Double> revenueByMonth;
     private Map<String, Double> revenueByCategory;
-    private Map<String, Double> revenueByPaymentMethod;
+    private Map<String, Long> invoicesByStatus;
 
     // Period
     private String periodStart;

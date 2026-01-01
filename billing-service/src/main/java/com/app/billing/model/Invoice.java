@@ -1,6 +1,6 @@
 package com.app.billing.model;
 
-import lombok. AllArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,8 +12,6 @@ import org. springframework.data.mongodb.core. mapping.Document;
 
 import java.time. Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @Builder
@@ -29,7 +27,7 @@ public class Invoice {
     private String invoiceNumber;           // INV-2026-00001
 
     // Booking Reference
-    @Indexed
+    @Indexed(unique = true)
     private String bookingId;
     private String bookingNumber;
 
@@ -39,7 +37,6 @@ public class Invoice {
     private String customerName;
     private String customerEmail;
     private String customerPhone;
-    private String customerAddress;
 
     // Service Info (Snapshot)
     private String serviceId;
@@ -50,38 +47,32 @@ public class Invoice {
     private String technicianId;
     private String technicianName;
 
-    // Line Items
-    @Builder.Default
-    private List<LineItem> lineItems = new ArrayList<>();
-
     // Pricing
-    private Double subtotal;
+    private Double basePrice;
     private Double taxPercentage;
     private Double taxAmount;
     private Double discountPercentage;
     private Double discountAmount;
     private Double totalAmount;
-    private String currency;
-
-    // Payment Tracking
-    @Builder.Default
-    private Double amountPaid = 0.0;
 
     @Builder.Default
-    private Double balanceDue = 0.0;
+    private String currency = "INR";
 
     // Status
     @Indexed
     private InvoiceStatus status;
 
+    // Payment Info (filled when paid)
+    private PaymentMethod paymentMethod;
+    private Instant paidAt;
+    private String paidBy;              // User who clicked pay button
+
     // Dates
     private LocalDate invoiceDate;
     private LocalDate dueDate;
-    private Instant paidAt;
 
     // Notes
     private String notes;
-    private String termsAndConditions;
 
     // Audit
     private String createdBy;
@@ -91,16 +82,4 @@ public class Invoice {
 
     @LastModifiedDate
     private Instant updatedAt;
-
-    // Embedded Line Item
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LineItem {
-        private String description;
-        private Integer quantity;
-        private Double unitPrice;
-        private Double amount;
-    }
 }

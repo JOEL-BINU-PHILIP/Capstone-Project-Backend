@@ -1,4 +1,4 @@
-package com.app.billing.dto. request;
+package com.app.billing. dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,9 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
-import java. util.List;
 
 @Data
 @Builder
@@ -20,16 +17,18 @@ public class CreateInvoiceRequest {
     // Booking Reference
     @NotBlank(message = "Booking ID is required")
     private String bookingId;
+
     private String bookingNumber;
 
     // Customer Info
     @NotBlank(message = "Customer ID is required")
     private String customerId;
+
     @NotBlank(message = "Customer name is required")
     private String customerName;
+
     private String customerEmail;
     private String customerPhone;
-    private String customerAddress;
 
     // Service Info
     private String serviceId;
@@ -40,36 +39,14 @@ public class CreateInvoiceRequest {
     private String technicianId;
     private String technicianName;
 
-    // Line Items
-    private List<LineItemRequest> lineItems;
-
     // Pricing
-    @NotNull(message = "Subtotal is required")
-    @Positive(message = "Subtotal must be positive")
-    private Double subtotal;
+    @NotNull(message = "Base price is required")
+    @Positive(message = "Base price must be positive")
+    private Double basePrice;
 
-    private Double taxPercentage;
-    private Double discountPercentage;
-
-    @NotNull(message = "Total amount is required")
-    @Positive(message = "Total amount must be positive")
-    private Double totalAmount;
-
-    private String currency;
-
-    // Dates
-    private LocalDate dueDate;
+    private Double taxPercentage;       // Default 18% if not provided
+    private Double discountPercentage;  // Default 0% if not provided
 
     // Notes
     private String notes;
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LineItemRequest {
-        private String description;
-        private Integer quantity;
-        private Double unitPrice;
-    }
 }
