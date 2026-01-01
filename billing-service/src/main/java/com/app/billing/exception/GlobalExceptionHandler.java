@@ -41,13 +41,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
-    @ExceptionHandler(InvalidPaymentException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidPayment(InvalidPaymentException ex) {
-        log.warn("Invalid payment: {}", ex.getMessage());
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ex.getMessage()));
-    }
-
     @ExceptionHandler(BillingException.class)
     public ResponseEntity<ApiResponse<Void>> handleBillingException(BillingException ex) {
         log.warn("Billing error: {}", ex.getMessage());
