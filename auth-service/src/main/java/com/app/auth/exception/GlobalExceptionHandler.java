@@ -233,4 +233,45 @@ public class GlobalExceptionHandler {
                         null
                 ));
     }
+
+    // ===============================
+// Technician Approval Exception
+// ===============================
+    @ExceptionHandler(TechnicianNotApprovedException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleTechnicianNotApproved(
+            TechnicianNotApprovedException ex
+    ) {
+        log.warn("Technician login attempt without approval: {}", ex.getMessage());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("status", ex.getStatus().name());
+        data.put("requiresApproval", true);
+
+        if (ex.getRejectionReason() != null) {
+            data. put("rejectionReason", ex.getRejectionReason());
+        }
+
+        HttpStatus httpStatus;
+        switch (ex.getStatus()) {
+            case PENDING:
+                httpStatus = HttpStatus.FORBIDDEN; // 403
+                data.put("nextStep", "Wait for service manager approval.  You will receive an email once approved.");
+                break;
+            case REJECTED:
+                httpStatus = HttpStatus.FORBIDDEN; // 403
+                data.put("nextStep", "Your application was rejected. Please contact support for more information.");
+                break;
+            case SUSPENDED:
+                httpStatus = HttpStatus.FORBIDDEN; // 403
+                data.put("nextStep", "Your account has been suspended.  Please contact support.");
+                break;
+            default:
+                httpStatus = HttpStatus.FORBIDDEN;
+                data.put("nextStep", "Please contact support.");
+        }
+
+        return ResponseEntity
+                .status(httpStatus)
+                .body(new ApiResponse<>(false, ex.getMessage(), data));
+    }
 }

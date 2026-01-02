@@ -47,11 +47,12 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.security.email-verification-token-expiry-hours:24}")
     private long emailVerificationTokenExpiryHours;
 
+
     @Override
     @Transactional
     public AuthResponseDTO login(LoginRequestDTO request, HttpServletRequest httpRequest) {
 
-        String ipAddress = RequestUtils. getClientIp(httpRequest);
+        String ipAddress = RequestUtils.getClientIp(httpRequest);
         String userAgent = RequestUtils.getUserAgent(httpRequest);
 
         // Rate limiting
@@ -84,15 +85,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Verify password
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (! passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             handleFailedLogin(user, ipAddress, userAgent);
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
         // Check if email is verified
-        if (!user. isEmailVerified()) {
+        if (!user.isEmailVerified()) {
             auditLogService.logFailedLogin(
-                    user.getUsername(),
+                    user. getUsername(),
                     "Email not verified",
                     ipAddress,
                     userAgent
@@ -102,9 +103,9 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // ==================== NEW:  CHECK TECHNICIAN APPROVAL ====================
+        // ==================== CHECK TECHNICIAN APPROVAL ====================
         if (user.getRoles().contains(UserRole.ROLE_TECHNICIAN)) {
-            Optional<TechnicianProfile> profileOpt = technicianProfileRepository.findByUserId(user. getId());
+            Optional<TechnicianProfile> profileOpt = technicianProfileRepository.findByUserId(user.getId());
 
             if (profileOpt.isEmpty()) {
                 auditLogService.logFailedLogin(
@@ -116,34 +117,33 @@ public class AuthServiceImpl implements AuthService {
                 throw new AuthException("Technician profile not found.  Please contact support.");
             }
 
-            TechnicianProfile profile = profileOpt.get();
+            TechnicianProfile profile = profileOpt. get();
 
-            if (profile.getApprovalStatus() == TechnicianProfile. ApprovalStatus. PENDING) {
+            if (profile.getApprovalStatus() == TechnicianProfile.ApprovalStatus.PENDING) {
                 auditLogService.logFailedLogin(
                         user.getUsername(),
                         "Technician approval pending",
                         ipAddress,
                         userAgent
                 );
-                throw new AuthException(
-                        "Your technician account is pending approval. " +
-                                "You will receive an email once your account is approved by a service manager."
+                throw new TechnicianNotApprovedException(
+                        "Your technician account is pending approval from a service manager. " +
+                                "You will receive an email once your account is approved.",
+                        TechnicianProfile.ApprovalStatus. PENDING
                 );
             }
 
-            if (profile. getApprovalStatus() == TechnicianProfile.ApprovalStatus.REJECTED) {
+            if (profile.getApprovalStatus() == TechnicianProfile.ApprovalStatus.REJECTED) {
                 auditLogService.logFailedLogin(
                         user.getUsername(),
                         "Technician application rejected",
                         ipAddress,
                         userAgent
                 );
-                String reason = profile.getRejectionReason() != null
-                        ? profile.getRejectionReason()
-                        : "No reason provided";
-                throw new AuthException(
-                        "Your technician application was rejected.  Reason: " + reason +
-                                ". Please contact support for more information."
+                throw new TechnicianNotApprovedException(
+                        "Your technician application was rejected.",
+                        TechnicianProfile.ApprovalStatus.REJECTED,
+                        profile. getRejectionReason()
                 );
             }
 
@@ -154,12 +154,13 @@ public class AuthServiceImpl implements AuthService {
                         ipAddress,
                         userAgent
                 );
-                throw new AuthException(
-                        "Your technician account has been suspended.  Please contact support."
+                throw new TechnicianNotApprovedException(
+                        "Your technician account has been suspended.",
+                        TechnicianProfile.ApprovalStatus. SUSPENDED
                 );
             }
         }
-        // ==================== END NEW CHECK ===================
+        // ==================== END TECHNICIAN CHECK ===================
 
         // Reset failed attempts on successful login
         user.resetFailedAttempts();
@@ -168,8 +169,8 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Generate tokens
-        String accessToken = jwtUtils. generateAccessToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+        String accessToken = jwtUtils.generateAccessToken(user);
+        RefreshToken refreshToken = refreshTokenService. createRefreshToken(
                 user.getId(),
                 ipAddress,
                 userAgent
@@ -178,7 +179,7 @@ public class AuthServiceImpl implements AuthService {
         // Audit log
         auditLogService.logSuccessfulLogin(user.getId(), user.getUsername(), ipAddress, userAgent);
 
-        return buildAuthResponse(user, accessToken, refreshToken. getToken());
+        return buildAuthResponse(user, accessToken, refreshToken.getToken());
     }
 
     @Override
@@ -464,4 +465,6 @@ public class AuthServiceImpl implements AuthService {
                         .build())
                 .build();
     }
+
+
 }
