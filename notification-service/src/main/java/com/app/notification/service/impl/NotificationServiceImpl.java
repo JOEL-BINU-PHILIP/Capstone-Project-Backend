@@ -152,7 +152,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .userId(userId)
                 .userEmail(userEmail)
                 .userName(userName)
-                .type(NotificationType. PAYMENT_RECEIVED)
+                .type(NotificationType.PAYMENT_RECEIVED)
                 .title("Payment Received - Thank You!")
                 .message("We have received your payment of ₹" + String.format("%.2f", amount) +
                         " for invoice " + invoiceNumber + ". Thank you for your payment!")
@@ -296,5 +296,112 @@ public class NotificationServiceImpl implements NotificationService {
                 .createdAt(notification.getCreatedAt())
                 .readAt(notification.getReadAt())
                 .build();
+    }
+
+    // ========== NEW:  Unified Get Notifications Method ==========
+
+    @Override
+    public Page<NotificationResponse> getNotifications(
+            String userId,
+            NotificationType type,
+            Boolean isRead,
+            String currentUser,
+            boolean isAdmin,
+            Pageable pageable
+    ) {
+        Page<Notification> notifications;
+
+        // Determine effective user ID
+        String effectiveUserId = userId;
+
+        // If not admin, force filter to only current user's notifications
+        if (! isAdmin) {
+            effectiveUserId = currentUser;
+            log.debug("Non-admin user {} - filtering to own notifications only", currentUser);
+        }
+
+        // Apply filters based on what's provided
+        if (effectiveUserId != null && type != null && isRead != null) {
+            // All three filters
+            notifications = notificationRepository.findByUserIdAndTypeAndIsRead(effectiveUserId, type, isRead, pageable);
+            log.debug("Filtering by userId:  {}, type: {}, isRead: {}", effectiveUserId, type, isRead);
+
+        } else if (effectiveUserId != null && type != null) {
+            // User and type filter
+            notifications = notificationRepository.findByUserIdAndType(effectiveUserId, type, pageable);
+            log.debug("Filtering by userId: {} and type: {}", effectiveUserId, type);
+
+        } else if (effectiveUserId != null && isRead != null) {
+            // User and read status filter
+            notifications = notificationRepository.findByUserIdAndIsRead(effectiveUserId, isRead, pageable);
+            log.debug("Filtering by userId: {} and isRead: {}", effectiveUserId, isRead);
+
+        } else if (effectiveUserId != null) {
+            // Only user filter
+            notifications = notificationRepository.findByUserId(effectiveUserId, pageable);
+            log.debug("Filtering by userId: {}", effectiveUserId);
+
+        } else if (type != null && isRead != null) {
+            // Type and read status filter (admin only)
+            notifications = notificationRepository. findByTypeAndIsRead(type, isRead, pageable);
+            log.debug("Filtering by type: {} and isRead: {}", type, isRead);
+
+        } else if (type != null) {
+            // Only type filter (admin only)
+            notifications = notificationRepository.findByType(type, pageable);
+            log.debug("Filtering by type: {}", type);
+
+        } else if (isRead != null) {
+            // Only read status filter (admin only)
+            notifications = notificationRepository.findByIsRead(isRead, pageable);
+            log.debug("Filtering by isRead: {}", isRead);
+
+        } else {
+            // No filters - return all (admin only)
+            notifications = notificationRepository.findAll(pageable);
+            log.debug("Returning all notifications (no filters)");
+        }
+
+        return notifications. map(this::toResponse);
+    }
+
+// ========== NEW: Unified Count Method ==========
+
+    @Override
+    public long getNotificationCount(
+            String userId,
+            NotificationType type,
+            Boolean isRead,
+            String currentUser,
+            boolean isAdmin
+    ) {
+        // Determine effective user ID
+        String effectiveUserId = userId;
+
+        // If not admin, force filter to only current user's notifications
+        if (!isAdmin) {
+            effectiveUserId = currentUser;
+        }
+
+        // Apply filters based on what's provided
+        if (effectiveUserId != null && isRead != null) {
+            return notificationRepository.countByUserIdAndIsRead(effectiveUserId, isRead);
+
+        } else if (effectiveUserId != null && type != null) {
+            return notificationRepository. countByUserIdAndType(effectiveUserId, type);
+
+        } else if (effectiveUserId != null) {
+            return notificationRepository.countByUserIdAndIsReadFalse(effectiveUserId) +
+                    notificationRepository.countByUserIdAndIsRead(effectiveUserId, true);
+
+        } else if (type != null) {
+            return notificationRepository.countByType(type);
+
+        } else if (isRead != null) {
+            return notificationRepository.countByIsRead(isRead);
+
+        } else {
+            return notificationRepository. count();
+        }
     }
 }

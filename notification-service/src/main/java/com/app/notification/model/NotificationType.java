@@ -10,7 +10,6 @@ public enum NotificationType {
     SERVICE_COMPLETED,
     BOOKING_CANCELLED,
     BOOKING_RESCHEDULED,
-
-    // Billing related (1 type)
+    PAYMENT_RECEIVED, // Billing related (1 type)
     INVOICE_GENERATED
 }
