@@ -40,7 +40,7 @@ public class InternalApiController {
 
         Map<String, Object> response = new HashMap<>();
 
-        if (bookingOpt. isEmpty()) {
+        if (bookingOpt.isEmpty()) {
             response.put("success", false);
             response.put("message", "Booking not found");
             response.put("data", null);

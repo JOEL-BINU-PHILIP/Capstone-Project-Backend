@@ -1,12 +1,13 @@
 package com.app.notification.config;
 
-import org.springframework.amqp.core.*;
+import org.springframework.amqp. core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp. rabbit.core.RabbitTemplate;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
-import org.springframework.context.annotation.Bean;
-import org.springframework. context.annotation.Configuration;
+import org. springframework.amqp.rabbit.core. RabbitTemplate;
+import org.springframework.amqp. support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support. converter.MessageConverter;
+import org.springframework.beans.factory. annotation. Qualifier;
+import org. springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
@@ -39,9 +40,12 @@ public class RabbitMQConfig {
         return new TopicExchange(BILLING_EXCHANGE);
     }
 
-    // Bindings
+    // Bindings - Use @Qualifier to specify which exchange to use
     @Bean
-    public Binding bookingBinding(Queue notificationQueue, TopicExchange bookingExchange) {
+    public Binding bookingBinding(
+            @Qualifier("notificationQueue") Queue notificationQueue,
+            @Qualifier("bookingExchange") TopicExchange bookingExchange
+    ) {
         return BindingBuilder
                 .bind(notificationQueue)
                 .to(bookingExchange)
@@ -49,9 +53,12 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding billingBinding(Queue notificationQueue, TopicExchange billingExchange) {
+    public Binding billingBinding(
+            @Qualifier("notificationQueue") Queue notificationQueue,
+            @Qualifier("billingExchange") TopicExchange billingExchange
+    ) {
         return BindingBuilder
-                .bind(notificationQueue)
+                . bind(notificationQueue)
                 .to(billingExchange)
                 .with(BILLING_ROUTING_KEY);
     }

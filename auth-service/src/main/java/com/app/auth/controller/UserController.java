@@ -1,15 +1,16 @@
-package com.app. auth.controller;
+package com.app.auth. controller;
 
-import com.app. auth.dto.request.UpdateProfileRequest;
-import com.app.auth. dto.response.UserProfileResponseDTO;
+import com.app.auth. dto.request. ChangePasswordRequest;  // ← ADD THIS IMPORT
+import com. app.auth.dto.request.UpdateProfileRequest;
+import com.app. auth.dto.response.UserProfileResponseDTO;
 import com. app.auth.payload.ApiResponse;
 import com.app.auth. service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok. extern.slf4j.Slf4j;
 import org. springframework.http.ResponseEntity;
-import org.springframework.security. access.prepost. PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org. springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -22,7 +23,6 @@ public class UserController {
 
     /**
      * Get current user's profile
-     * Works for all authenticated users (Customer, Technician, Manager, Admin)
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
@@ -34,14 +34,13 @@ public class UserController {
 
         UserProfileResponseDTO profile = userService.getProfileByUsername(username);
 
-        return ResponseEntity.ok(
+        return ResponseEntity. ok(
                 new ApiResponse<>(true, "Profile retrieved", profile)
         );
     }
 
     /**
      * Update current user's profile
-     * Works for all authenticated users
      */
     @PutMapping("/me")
     @PreAuthorize("isAuthenticated()")
@@ -52,7 +51,7 @@ public class UserController {
         String username = authentication.getName();
         log.debug("Updating profile for user: {}", username);
 
-        UserProfileResponseDTO profile = userService. updateProfile(username, request);
+        UserProfileResponseDTO profile = userService.updateProfile(username, request);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Profile updated successfully", profile)
@@ -68,7 +67,7 @@ public class UserController {
             @Valid @RequestBody ChangePasswordRequest request,
             Authentication authentication
     ) {
-        String username = authentication. getName();
+        String username = authentication.getName();
         log.debug("Changing password for user: {}", username);
 
         userService. changePassword(username, request);

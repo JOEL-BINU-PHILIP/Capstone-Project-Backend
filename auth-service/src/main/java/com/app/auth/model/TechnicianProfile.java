@@ -78,6 +78,7 @@ public class TechnicianProfile {
     @LastModifiedDate
     private Instant updatedAt;
 
+
     public enum ApprovalStatus {
         PENDING,
         APPROVED,
