@@ -1,16 +1,16 @@
-package com. app.booking.security;
+package com.app.booking.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken. Jwts;
-import io. jsonwebtoken.security.Keys;
-import lombok.extern.slf4j. Slf4j;
-import org. springframework.beans.factory.annotation. Value;
-import org.springframework. stereotype.Component;
+import io. jsonwebtoken.Claims;
+import io. jsonwebtoken. Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans. factory.annotation.Value;
+import org. springframework.stereotype.Component;
 
 import java. nio.charset.StandardCharsets;
 import java.security.Key;
-import java.util.Date;
 import java.util.List;
+
 
 @Slf4j
 @Component
@@ -22,9 +22,6 @@ public class JwtUtil {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Extract all claims from token
-     */
     public Claims extractAllClaims(String token) {
         return Jwts. parserBuilder()
                 .setSigningKey(key)
@@ -33,15 +30,13 @@ public class JwtUtil {
                 .getBody();
     }
 
-    /**
-     * Extract username (subject) from token
-     */
     public String extractUsername(String token) {
         return extractAllClaims(token).getSubject();
     }
 
     /**
-     * Extract user ID from token
+     * Extract user ID from JWT token
+     * The userId should be stored in a claim called "userId" or "id"
      */
     public String extractUserId(String token) {
         Claims claims = extractAllClaims(token);
@@ -52,128 +47,75 @@ public class JwtUtil {
             return userId.toString();
         }
 
-        // Try id
+        // Fallback:  try "id" claim
         Object id = claims.get("id");
         if (id != null) {
             return id.toString();
         }
 
-        // Fallback to subject (username)
+        // Last resort: use subject (username) - but this should be avoided
+        log.warn("No userId claim found in token, falling back to subject (username). " +
+                "This may cause issues with booking lookups!");
         return claims.getSubject();
     }
 
-    /**
-     * Extract full name from token
-     */
     public String extractFullName(String token) {
         Claims claims = extractAllClaims(token);
 
-        // Try fullName
+        // Try fullName claim first
         Object fullName = claims.get("fullName");
-        if (fullName != null) {
+        if (fullName != null && !fullName.toString().isEmpty()) {
             return fullName.toString();
         }
 
-        // Try name
-        Object name = claims.get("name");
-        if (name != null) {
-            return name.toString();
+        // Try to build from firstName + lastName
+        Object firstName = claims.get("firstName");
+        Object lastName = claims.get("lastName");
+
+        StringBuilder name = new StringBuilder();
+        if (firstName != null && ! firstName.toString().isEmpty()) {
+            name.append(firstName. toString());
+        }
+        if (lastName != null && !lastName.toString().isEmpty()) {
+            if (name.length() > 0) name.append(" ");
+            name.append(lastName.toString());
         }
 
-        // Try firstName + lastName
-        Object firstName = claims. get("firstName");
-        Object lastName = claims.get("lastName");
-        if (firstName != null || lastName != null) {
-            String first = firstName != null ? firstName.toString() : "";
-            String last = lastName != null ? lastName.toString() : "";
-            return (first + " " + last).trim();
+        if (name.length() > 0) {
+            return name. toString();
         }
 
         // Fallback to username
-        return claims.getSubject();
+        return extractUsername(token);
     }
 
-    /**
-     * Extract email from token
-     */
     public String extractEmail(String token) {
         Claims claims = extractAllClaims(token);
         Object email = claims.get("email");
         return email != null ? email.toString() : null;
     }
 
-    /**
-     * Extract phone number from token
-     */
     public String extractPhoneNumber(String token) {
         Claims claims = extractAllClaims(token);
-
-        // Try phoneNumber
         Object phone = claims.get("phoneNumber");
-        if (phone != null) {
-            return phone.toString();
+        if (phone == null) {
+            phone = claims.get("phone");
         }
-
-        // Try phone
-        phone = claims.get("phone");
-        if (phone != null) {
-            return phone.toString();
-        }
-
-        // Try mobile
-        phone = claims.get("mobile");
         return phone != null ? phone.toString() : null;
     }
 
-    /**
-     * Extract roles from token
-     */
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
-        return extractAllClaims(token).get("roles", List.class);
+        Claims claims = extractAllClaims(token);
+        return claims.get("roles", List.class);
     }
 
-    /**
-     * Extract expiration date from token
-     */
-    public Date extractExpiration(String token) {
-        return extractAllClaims(token).getExpiration();
-    }
-
-    /**
-     * Check if token is expired
-     */
-    public boolean isTokenExpired(String token) {
-        try {
-            Date expiration = extractExpiration(token);
-            return expiration != null && expiration.before(new Date());
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    /**
-     * Validate token
-     */
     public boolean validateToken(String token) {
         try {
             extractAllClaims(token);
-            return ! isTokenExpired(token);
+            return true;
         } catch (Exception e) {
-            log.warn("Token validation failed: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Validate token with username check
-     */
-    public boolean validateToken(String token, String username) {
-        try {
-            String extractedUsername = extractUsername(token);
-            return extractedUsername. equals(username) && !isTokenExpired(token);
-        } catch (Exception e) {
-            log.warn("Token validation failed: {}", e.getMessage());
+            log. warn("Token validation failed: {}", e.getMessage());
             return false;
         }
     }

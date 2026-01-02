@@ -47,7 +47,7 @@ public class SecurityConfig {
                         // All other requests need authentication
                         . anyRequest().authenticated()
                 )
-                // ADD THIS LINE - This is the critical fix!
+
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

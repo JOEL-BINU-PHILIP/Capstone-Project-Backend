@@ -1,28 +1,28 @@
-package com.app.booking. controller;
+package com.app.booking.controller;
 
-import com.app. booking.dto.request.*;
-import com.app.booking. dto.response.ApiResponse;
-import com.app. booking.dto.response.BookingResponse;
+import com.app.booking.dto.request.*;
+import com.app.booking.dto. response. ApiResponse;
+import com.app.booking. dto.response.BookingResponse;
 import com.app.booking.dto.response.BookingStatsResponse;
 import com.app.booking.model.BookingStatus;
-import com.app.booking.security.JwtUtil;
-import com.app.booking.service.BookingService;
+import com. app.booking.security.JwtUtil;
+import com. app.booking.service. BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework. data.domain.Pageable;
-import org.springframework.data. domain.Sort;
-import org. springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework. security.access.prepost.PreAuthorize;
+import org.springframework.data.domain. PageRequest;
+import org.springframework.data. domain.Pageable;
+import org. springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework. http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org. springframework.security.core.Authentication;
-import org.springframework.security. core. GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core. GrantedAuthority;
+import org.springframework.security.core. context.SecurityContextHolder;
+import org. springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util. List;
 import java.util.stream.Collectors;
 
 /**
@@ -49,11 +49,11 @@ public class BookingController {
             @Valid @RequestBody CreateBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
-        String token = authHeader.substring(7);
+        String token = authHeader. substring(7);
         String customerId = jwtUtil.extractUserId(token);
         String customerName = jwtUtil.extractFullName(token);
         String customerEmail = jwtUtil.extractEmail(token);
-        String customerPhone = jwtUtil.extractPhoneNumber(token);
+        String customerPhone = jwtUtil. extractPhoneNumber(token);
 
         log.info("Creating booking for customer: {}", customerId);
 
@@ -70,9 +70,6 @@ public class BookingController {
 
     /**
      * Get bookings based on user role
-     * - CUSTOMER: Returns own bookings
-     * - TECHNICIAN: Returns assigned bookings
-     * - MANAGER/ADMIN: Returns all bookings
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'TECHNICIAN', 'SERVICE_MANAGER', 'ADMIN')")
@@ -80,23 +77,23 @@ public class BookingController {
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String userId = jwtUtil.extractUserId(token);
+        String userId = jwtUtil. extractUserId(token);
         List<String> roles = getRolesFromAuth();
 
         List<BookingResponse> bookings;
 
         if (hasRole(roles, "SERVICE_MANAGER") || hasRole(roles, "ADMIN")) {
             log.info("Manager/Admin {} fetching all bookings", userId);
-            bookings = bookingService. getAllBookings();
+            bookings = bookingService.getAllBookings();
         } else if (hasRole(roles, "TECHNICIAN")) {
-            log.info("Technician {} fetching assigned bookings", userId);
+            log. info("Technician {} fetching assigned bookings", userId);
             bookings = bookingService.getTechnicianBookings(userId);
         } else {
             log.info("Customer {} fetching own bookings", userId);
             bookings = bookingService.getCustomerBookings(userId);
         }
 
-        return ResponseEntity. ok(ApiResponse.success(bookings));
+        return ResponseEntity. ok(ApiResponse. success(bookings));
     }
 
     /**
@@ -106,18 +103,18 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('CUSTOMER', 'TECHNICIAN', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<BookingResponse>>> getBookingsPaged(
             @RequestHeader("Authorization") String authHeader,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "sortBy", defaultValue = "createdAt") String sortBy,
+            @RequestParam(value = "sortDir", defaultValue = "desc") String sortDir
     ) {
         String token = authHeader.substring(7);
-        String userId = jwtUtil. extractUserId(token);
+        String userId = jwtUtil.extractUserId(token);
         List<String> roles = getRolesFromAuth();
 
         Sort sort = sortDir.equalsIgnoreCase("asc") ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        Pageable pageable = PageRequest.of(page, size, sort);
+        Pageable pageable = PageRequest. of(page, size, sort);
 
         Page<BookingResponse> bookings;
 
@@ -126,7 +123,7 @@ public class BookingController {
         } else if (hasRole(roles, "TECHNICIAN")) {
             bookings = bookingService.getTechnicianBookingsPaged(userId, pageable);
         } else {
-            bookings = bookingService. getCustomerBookingsPaged(userId, pageable);
+            bookings = bookingService.getCustomerBookingsPaged(userId, pageable);
         }
 
         return ResponseEntity.ok(ApiResponse.success(bookings));
@@ -139,8 +136,8 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getAllBookings() {
         log.info("Fetching all bookings");
-        List<BookingResponse> bookings = bookingService.getAllBookings();
-        return ResponseEntity.ok(ApiResponse.success(bookings));
+        List<BookingResponse> bookings = bookingService. getAllBookings();
+        return ResponseEntity. ok(ApiResponse. success(bookings));
     }
 
     /**
@@ -149,17 +146,17 @@ public class BookingController {
     @GetMapping("/all/paged")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<BookingResponse>>> getAllBookingsPaged(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "sortBy", defaultValue = "createdAt") String sortBy,
+            @RequestParam(value = "sortDir", defaultValue = "desc") String sortDir
     ) {
-        Sort sort = sortDir.equalsIgnoreCase("asc") ?
+        Sort sort = sortDir. equalsIgnoreCase("asc") ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        Pageable pageable = PageRequest. of(page, size, sort);
+        Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<BookingResponse> bookings = bookingService.getAllBookingsPaged(pageable);
-        return ResponseEntity.ok(ApiResponse. success(bookings));
+        return ResponseEntity.ok(ApiResponse.success(bookings));
     }
 
     // ==================== GET SINGLE BOOKING ====================
@@ -170,7 +167,7 @@ public class BookingController {
     @GetMapping("/{bookingId}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'TECHNICIAN', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponse>> getBookingById(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
@@ -181,7 +178,7 @@ public class BookingController {
 
         BookingResponse booking = bookingService.getBookingByIdWithAccessCheck(bookingId, userId, roles);
 
-        return ResponseEntity. ok(ApiResponse.success(booking));
+        return ResponseEntity. ok(ApiResponse. success(booking));
     }
 
     /**
@@ -190,18 +187,18 @@ public class BookingController {
     @GetMapping("/number/{bookingNumber}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'TECHNICIAN', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponse>> getBookingByNumber(
-            @PathVariable String bookingNumber,
+            @PathVariable("bookingNumber") String bookingNumber,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String userId = jwtUtil.extractUserId(token);
+        String userId = jwtUtil. extractUserId(token);
         List<String> roles = getRolesFromAuth();
 
         log.info("User {} fetching booking by number {}", userId, bookingNumber);
 
-        BookingResponse booking = bookingService.getBookingByNumberWithAccessCheck(bookingNumber, userId, roles);
+        BookingResponse booking = bookingService. getBookingByNumberWithAccessCheck(bookingNumber, userId, roles);
 
-        return ResponseEntity.ok(ApiResponse. success(booking));
+        return ResponseEntity.ok(ApiResponse.success(booking));
     }
 
     // ==================== TECHNICIAN SPECIFIC ====================
@@ -214,13 +211,13 @@ public class BookingController {
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getTechnicianActiveBookings(
             @RequestHeader("Authorization") String authHeader
     ) {
-        String token = authHeader.substring(7);
-        String technicianId = jwtUtil. extractUserId(token);
+        String token = authHeader. substring(7);
+        String technicianId = jwtUtil.extractUserId(token);
 
         log.info("Technician {} fetching active bookings", technicianId);
 
         List<BookingResponse> bookings = bookingService.getTechnicianActiveBookings(technicianId);
-        return ResponseEntity.ok(ApiResponse.success(bookings));
+        return ResponseEntity. ok(ApiResponse. success(bookings));
     }
 
     // ==================== MANAGER SPECIFIC ====================
@@ -231,7 +228,7 @@ public class BookingController {
     @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getPendingBookings() {
-        log.info("Fetching pending bookings");
+        log. info("Fetching pending bookings");
         List<BookingResponse> bookings = bookingService.getPendingBookings();
         return ResponseEntity.ok(ApiResponse.success(bookings));
     }
@@ -242,11 +239,11 @@ public class BookingController {
     @GetMapping("/status/{status}")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getBookingsByStatus(
-            @PathVariable BookingStatus status
+            @PathVariable("status") BookingStatus status
     ) {
         log.info("Fetching bookings with status: {}", status);
         List<BookingResponse> bookings = bookingService.getBookingsByStatus(status);
-        return ResponseEntity.ok(ApiResponse.success(bookings));
+        return ResponseEntity. ok(ApiResponse. success(bookings));
     }
 
     /**
@@ -255,9 +252,9 @@ public class BookingController {
     @GetMapping("/stats")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingStatsResponse>> getBookingStats() {
-        log.info("Fetching booking statistics");
-        BookingStatsResponse stats = bookingService. getBookingStats();
-        return ResponseEntity.ok(ApiResponse. success(stats));
+        log. info("Fetching booking statistics");
+        BookingStatsResponse stats = bookingService.getBookingStats();
+        return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
     /**
@@ -266,10 +263,10 @@ public class BookingController {
     @GetMapping("/search")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> searchBookings(
-            @RequestParam String query
+            @RequestParam("query") String query
     ) {
         log.info("Searching bookings with query: {}", query);
-        List<BookingResponse> bookings = bookingService.searchBookings(query);
+        List<BookingResponse> bookings = bookingService. searchBookings(query);
         return ResponseEntity.ok(ApiResponse.success(bookings));
     }
 
@@ -281,17 +278,17 @@ public class BookingController {
     @PutMapping("/{bookingId}/reschedule")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<BookingResponse>> rescheduleBooking(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody RescheduleBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
-        String token = authHeader.substring(7);
+        String token = authHeader. substring(7);
         String customerId = jwtUtil.extractUserId(token);
 
         log.info("Customer {} rescheduling booking {}", customerId, bookingId);
 
         BookingResponse booking = bookingService.rescheduleBooking(bookingId, request, customerId);
-        return ResponseEntity.ok(ApiResponse.success("Booking rescheduled successfully", booking));
+        return ResponseEntity. ok(ApiResponse. success("Booking rescheduled successfully", booking));
     }
 
     /**
@@ -300,12 +297,12 @@ public class BookingController {
     @PostMapping("/{bookingId}/cancel")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponse>> cancelBooking(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody CancelBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String userId = jwtUtil.extractUserId(token);
+        String userId = jwtUtil. extractUserId(token);
         List<String> roles = getRolesFromAuth();
 
         log.info("User {} cancelling booking {}", userId, bookingId);
@@ -314,10 +311,10 @@ public class BookingController {
         if (hasRole(roles, "SERVICE_MANAGER") || hasRole(roles, "ADMIN")) {
             booking = bookingService.cancelBookingByManager(bookingId, request, userId);
         } else {
-            booking = bookingService. cancelBookingByCustomer(bookingId, request, userId);
+            booking = bookingService.cancelBookingByCustomer(bookingId, request, userId);
         }
 
-        return ResponseEntity. ok(ApiResponse.success("Booking cancelled successfully", booking));
+        return ResponseEntity.ok(ApiResponse.success("Booking cancelled successfully", booking));
     }
 
     /**
@@ -326,12 +323,12 @@ public class BookingController {
     @PostMapping("/{bookingId}/rate")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<BookingResponse>> rateBooking(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody RateBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String customerId = jwtUtil.extractUserId(token);
+        String customerId = jwtUtil. extractUserId(token);
 
         log.info("Customer {} rating booking {}", customerId, bookingId);
 
@@ -345,16 +342,16 @@ public class BookingController {
     @PostMapping("/{bookingId}/generate-otp")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<String>> generateOtp(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String customerId = jwtUtil. extractUserId(token);
+        String customerId = jwtUtil.extractUserId(token);
 
         log.info("Customer {} generating OTP for booking {}", customerId, bookingId);
 
         String otp = bookingService.generateCompletionOtp(bookingId, customerId);
-        return ResponseEntity. ok(ApiResponse.success("OTP generated successfully", otp));
+        return ResponseEntity.ok(ApiResponse.success("OTP generated successfully", otp));
     }
 
     // ==================== BOOKING ACTIONS - TECHNICIAN ====================
@@ -365,7 +362,7 @@ public class BookingController {
     @PostMapping("/{bookingId}/confirm")
     @PreAuthorize("hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<BookingResponse>> confirmBooking(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
@@ -373,7 +370,7 @@ public class BookingController {
 
         log.info("Technician {} confirming booking {}", technicianId, bookingId);
 
-        BookingResponse booking = bookingService.confirmBooking(bookingId, technicianId);
+        BookingResponse booking = bookingService. confirmBooking(bookingId, technicianId);
         return ResponseEntity.ok(ApiResponse.success("Booking confirmed successfully", booking));
     }
 
@@ -383,12 +380,12 @@ public class BookingController {
     @PostMapping("/{bookingId}/reject")
     @PreAuthorize("hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<BookingResponse>> rejectBooking(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody RejectBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String technicianId = jwtUtil.extractUserId(token);
+        String technicianId = jwtUtil. extractUserId(token);
 
         log.info("Technician {} rejecting booking {}", technicianId, bookingId);
 
@@ -402,10 +399,10 @@ public class BookingController {
     @PostMapping("/{bookingId}/start")
     @PreAuthorize("hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<BookingResponse>> startService(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @RequestHeader("Authorization") String authHeader
     ) {
-        String token = authHeader.substring(7);
+        String token = authHeader. substring(7);
         String technicianId = jwtUtil.extractUserId(token);
 
         log.info("Technician {} starting service for booking {}", technicianId, bookingId);
@@ -420,7 +417,7 @@ public class BookingController {
     @PostMapping("/{bookingId}/complete")
     @PreAuthorize("hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<BookingResponse>> completeService(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody CompleteBookingRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
@@ -430,7 +427,7 @@ public class BookingController {
         log.info("Technician {} completing booking {}", technicianId, bookingId);
 
         BookingResponse booking = bookingService.completeService(bookingId, request, technicianId);
-        return ResponseEntity.ok(ApiResponse. success("Service completed successfully", booking));
+        return ResponseEntity.ok(ApiResponse.success("Service completed successfully", booking));
     }
 
     // ==================== BOOKING ACTIONS - MANAGER ====================
@@ -441,7 +438,7 @@ public class BookingController {
     @PostMapping("/{bookingId}/assign")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponse>> assignTechnician(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody AssignTechnicianRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
@@ -460,12 +457,12 @@ public class BookingController {
     @PostMapping("/{bookingId}/reassign")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponse>> reassignTechnician(
-            @PathVariable String bookingId,
+            @PathVariable("bookingId") String bookingId,
             @Valid @RequestBody AssignTechnicianRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
         String token = authHeader.substring(7);
-        String managerId = jwtUtil.extractUserId(token);
+        String managerId = jwtUtil. extractUserId(token);
 
         log.info("Manager {} reassigning technician for booking {}", managerId, bookingId);
 
@@ -476,11 +473,11 @@ public class BookingController {
     // ==================== HELPER METHODS ====================
 
     private List<String> getRolesFromAuth() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
+        Authentication auth = SecurityContextHolder. getContext().getAuthentication();
+        return auth. getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .map(role -> role.replace("ROLE_", ""))
-                .collect(Collectors.toList());
+                .collect(Collectors. toList());
     }
 
     private boolean hasRole(List<String> roles, String role) {
