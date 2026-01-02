@@ -71,4 +71,55 @@ public class EmailServiceImpl implements EmailService {
             log.error("Failed to send welcome email to: {}", email, e);
         }
     }
+
+    @Override
+    @Async
+    public void sendTechnicianApprovalEmail(String email, String username) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("Your Technician Account is Approved!  - Home Service Platform");
+            message.setText(String.format(
+                    "Hello %s,\n\n" +
+                            "Great news! Your technician account has been approved by our service manager.\n\n" +
+                            "You can now log in to the platform and start accepting service requests.\n\n" +
+                            "Login here: %s/login\n\n" +
+                            "Best regards,\n" +
+                            "Home Service Platform Team",
+                    username, baseUrl
+            ));
+
+            mailSender. send(message);
+            log.info("Technician approval email sent to: {}", email);
+        } catch (Exception e) {
+            log.error("Failed to send technician approval email to: {}", email, e);
+        }
+    }
+
+    @Override
+    @Async
+    public void sendTechnicianRejectionEmail(String email, String username, String reason) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("Technician Application Update - Home Service Platform");
+            message.setText(String.format(
+                    "Hello %s,\n\n" +
+                            "We regret to inform you that your technician application has been rejected.\n\n" +
+                            "Reason: %s\n\n" +
+                            "If you believe this is a mistake or would like to provide additional information, " +
+                            "please contact our support team.\n\n" +
+                            "Best regards,\n" +
+                            "Home Service Platform Team",
+                    username, reason
+            ));
+
+            mailSender.send(message);
+            log.info("Technician rejection email sent to: {}", email);
+        } catch (Exception e) {
+            log.error("Failed to send technician rejection email to: {}", email, e);
+        }
+    }
 }

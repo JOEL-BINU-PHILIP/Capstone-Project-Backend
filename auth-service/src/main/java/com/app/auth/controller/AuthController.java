@@ -1,16 +1,17 @@
 package com.app.auth.controller;
 
-import com.app.auth.dto.request.*;
-import com.app.auth.dto.response.AuthResponseDTO;
-import com.app.auth.payload.ApiResponse;
-import com.app.auth.service.AuthService;
-import com.app.auth.service.RefreshTokenService;
-import com.app.auth.util.RequestUtils;
-import jakarta.servlet.http.HttpServletRequest;
+import com.app.auth.dto. request.*;
+import com.app.auth.dto. response. AuthResponseDTO;
+import com.app. auth.dto.response.RegistrationResponseDTO;
+import com.app.auth. payload.ApiResponse;
+import com.app.auth. service.AuthService;
+import com.app. auth.service.RefreshTokenService;
+import com.app.auth. util.RequestUtils;
+import jakarta.servlet. http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework. http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,22 +28,22 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         AuthResponseDTO response = authService.login(request, httpRequest);
-        return ResponseEntity.ok(
+        return ResponseEntity. ok(
                 new ApiResponse<>(true, "Login successful", response)
         );
     }
 
     @PostMapping("/register/customer")
-    public ResponseEntity<ApiResponse<AuthResponseDTO>> registerCustomer(
+    public ResponseEntity<ApiResponse<RegistrationResponseDTO>> registerCustomer(
             @Valid @RequestBody RegisterCustomerDTO dto
     ) {
-        AuthResponseDTO response = authService.registerCustomer(
+        RegistrationResponseDTO response = authService. registerCustomer(
                 dto.getUsername(),
-                dto.getEmail(),
+                dto. getEmail(),
                 dto.getPassword(),
                 dto.getFirstName(),
                 dto.getLastName(),
-                dto.getPhoneNumber(),
+                dto. getPhoneNumber(),
                 dto.getCity(),
                 dto.getState(),
                 dto.getZipCode()
@@ -52,35 +53,35 @@ public class AuthController {
                 .status(HttpStatus.CREATED)
                 .body(new ApiResponse<>(
                         true,
-                        "Customer registered successfully. Please verify your email.",
+                        response.getMessage(),
                         response
                 ));
     }
 
     @PostMapping("/register/technician")
-    public ResponseEntity<ApiResponse<AuthResponseDTO>> registerTechnician(
+    public ResponseEntity<ApiResponse<RegistrationResponseDTO>> registerTechnician(
             @Valid @RequestBody RegisterTechnicianDTO dto
     ) {
-        AuthResponseDTO response = authService.registerTechnician(
+        RegistrationResponseDTO response = authService.registerTechnician(
                 dto.getUsername(),
-                dto.getEmail(),
+                dto. getEmail(),
                 dto.getPassword(),
                 dto.getFirstName(),
                 dto.getLastName(),
-                dto.getPhoneNumber(),
+                dto. getPhoneNumber(),
                 dto.getSkills(),
                 dto.getExperienceYears(),
                 dto.getBio(),
                 dto.getCity(),
                 dto.getState(),
-                dto.getIdProofType()
+                dto. getIdProofType()
         );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(new ApiResponse<>(
                         true,
-                        "Technician registered successfully. Please verify your email and wait for approval.",
+                        response. getMessage(),
                         response
                 ));
     }
@@ -90,7 +91,7 @@ public class AuthController {
             @Valid @RequestBody RefreshTokenRequestDTO request,
             HttpServletRequest httpRequest
     ) {
-        String ipAddress = RequestUtils.getClientIp(httpRequest);
+        String ipAddress = RequestUtils. getClientIp(httpRequest);
         String userAgent = RequestUtils.getUserAgent(httpRequest);
 
         AuthResponseDTO response = refreshTokenService.refreshAccessToken(
@@ -99,7 +100,7 @@ public class AuthController {
                 userAgent
         );
 
-        return ResponseEntity.ok(
+        return ResponseEntity. ok(
                 new ApiResponse<>(true, "Token refreshed successfully", response)
         );
     }
@@ -109,16 +110,16 @@ public class AuthController {
             @RequestParam("token") String token
     ) {
         authService.verifyEmail(token);
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Email verified successfully", null)
+        return ResponseEntity. ok(
+                new ApiResponse<>(true, "Email verified successfully.  You can now login.", null)
         );
     }
 
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<Void>> resendVerification(
-            @RequestParam String email
+            @RequestParam("email") String email
     ) {
-        authService.resendVerificationEmail(email);
+        authService. resendVerificationEmail(email);
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Verification email sent", null)
         );
@@ -130,7 +131,7 @@ public class AuthController {
             HttpServletRequest httpRequest
     ) {
         authService.logout(request.getRefreshToken(), httpRequest);
-        return ResponseEntity.ok(
+        return ResponseEntity. ok(
                 new ApiResponse<>(true, "Logged out successfully", null)
         );
     }
