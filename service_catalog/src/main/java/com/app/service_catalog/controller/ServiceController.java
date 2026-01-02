@@ -1,18 +1,18 @@
-package com.app.service_catalog.controller;
+package com.app.service_catalog. controller;
 
-import com.app.service_catalog.dto.request.CreateServiceRequest;
+import com.app. service_catalog.dto.request. CreateServiceRequest;
 import com.app.service_catalog.dto.request.UpdateServiceRequest;
-import com.app.service_catalog.dto.response.  ServiceItemResponse;
-import com. app.service_catalog.service. ServiceItemService;
+import com.app.service_catalog.dto.response.ServiceItemResponse;
+import com.app. service_catalog.service.ServiceItemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework. http.ResponseEntity;
-import org.springframework.security.access.  prepost.PreAuthorize;
-import org.springframework.web. bind.annotation.*;
+import lombok.extern.slf4j. Slf4j;
+import org. springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework. security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
-import java. util.  List;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -38,7 +38,7 @@ public class ServiceController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceItemResponse> update(
             @PathVariable("serviceId") String serviceId,
-            @Valid @RequestBody UpdateServiceRequest request) {
+            @RequestBody UpdateServiceRequest request) {
         log.info("Updating service: {}", serviceId);
         return ResponseEntity.ok(serviceItemService.updateService(serviceId, request));
     }
@@ -49,7 +49,7 @@ public class ServiceController {
             @PathVariable("serviceId") String serviceId,
             @RequestParam("active") boolean active) {
         log.info("Updating service {} status to: {}", serviceId, active);
-        return ResponseEntity. ok(serviceItemService.  updateServiceStatus(serviceId, active));
+        return ResponseEntity. ok(serviceItemService.updateServiceStatus(serviceId, active));
     }
 
     @DeleteMapping("/{serviceId}")
@@ -61,72 +61,54 @@ public class ServiceController {
     }
 
     // =====================
-    // GET SERVICES - With Query Parameters
+    // ADMIN & SERVICE MANAGER
     // =====================
 
-    /**
-     * Get services with optional filters
-     *
-     * Examples:
-     * - GET /api/services                       → All services (admin/manager)
-     * - GET /api/services?active=true           → Active services only
-     * - GET /api/services?categoryId=xxx        → Services in category
-     * - GET /api/services?active=true&categoryId=xxx → Active services in category
-     */
     @GetMapping
-    public ResponseEntity<List<ServiceItemResponse>> getServices(
-            @RequestParam(value = "active", required = false) Boolean active,
-            @RequestParam(value = "categoryId", required = false) String categoryId
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
+    public ResponseEntity<List<ServiceItemResponse>> getAll(
+            @RequestParam(value = "categoryId", required = false) String categoryId,
+            @RequestParam(value = "active", required = false) Boolean active
     ) {
-        log.debug("Getting services - active: {}, categoryId: {}", active, categoryId);
+        log.debug("Getting services - categoryId: {}, active: {}", categoryId, active);
 
-        // If no filters, check role for default behavior
-        if (active == null && categoryId == null) {
-            // For public access, default to active only
-            // For admin/manager, return all (handled in service layer or by auth)
-            return ResponseEntity.ok(serviceItemService.getAllServices());
+        // If filters provided, use filtered method
+        if (categoryId != null || active != null) {
+            return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
         }
 
-        return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
+        return ResponseEntity.ok(serviceItemService.getAllServices());
     }
 
-    /**
-     * Get active services (PUBLIC - backward compatible)
-     */
+    // =====================
+    // PUBLIC - No auth required
+    // =====================
+
     @GetMapping("/active")
     public ResponseEntity<List<ServiceItemResponse>> getActiveServices() {
         log.debug("Getting active services");
-        return ResponseEntity.  ok(serviceItemService.getActiveServices());
+        return ResponseEntity.ok(serviceItemService.getActiveServices());
     }
 
-    /**
-     * Get single service by ID
-     */
     @GetMapping("/{serviceId}")
     public ResponseEntity<ServiceItemResponse> getById(@PathVariable("serviceId") String serviceId) {
         log.debug("Getting service: {}", serviceId);
         return ResponseEntity. ok(serviceItemService.getServiceById(serviceId));
     }
 
-    /**
-     * Search services
-     */
     @GetMapping("/search")
     public ResponseEntity<List<ServiceItemResponse>> search(
             @RequestParam(value = "query", required = false) String query,
             @RequestParam(value = "skill", required = false) String skill) {
         log.debug("Searching services - query: {}, skill: {}", query, skill);
-        return ResponseEntity.ok(serviceItemService.search(query, skill));
+        return ResponseEntity.ok(serviceItemService. search(query, skill));
     }
 
-    /**
-     * Get services by category
-     */
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<List<ServiceItemResponse>> getByCategory(
             @PathVariable("categoryId") String categoryId,
             @RequestParam(value = "active", required = false) Boolean active) {
-        log.debug("Getting services for category: {}", categoryId);
+        log.debug("Getting services for category: {}, active: {}", categoryId, active);
         return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
     }
 }

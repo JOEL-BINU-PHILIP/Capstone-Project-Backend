@@ -1,21 +1,22 @@
-package com.app. service_catalog.service.impl;
+package com.app.service_catalog. service.impl;
 
-import com.app.service_catalog.dto.request.CreateServiceRequest;
-import com.app. service_catalog.dto.request. UpdateServiceRequest;
-import com. app.service_catalog.dto. response.ServiceItemResponse;
-import com.app.service_catalog. exception.ResourceNotFoundException;
-import com.app.service_catalog.exception.DuplicateResourceException;
-import com.app.service_catalog. model.ServiceItem;
-import com.app.service_catalog.repository.ServiceCategoryRepository;
-import com.app.service_catalog.repository.ServiceItemRepository;
-import com.app.service_catalog.service.ServiceItemService;
+import com. app.service_catalog.dto. request.CreateServiceRequest;
+import com.app.service_catalog.dto.request.UpdateServiceRequest;
+import com.app.service_catalog.dto.response.PricingDetailsResponse;
+import com.app.service_catalog.dto.response.ServiceItemResponse;
+import com.app.service_catalog.exception.ResourceNotFoundException;
+import com.app.service_catalog. model.ServiceCategory;
+import com.app.service_catalog.model.ServiceItem;
+import com. app.service_catalog.repository.ServiceCategoryRepository;
+import com.app.service_catalog. repository.ServiceItemRepository;
+import com.app.service_catalog. service.ServiceItemService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.  Slf4j;
-import org. springframework.  stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.time. Instant;
 import java.util. List;
-import java.util. stream.  Collectors;
+import java.util. stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,27 +30,34 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
     @Override
     public ServiceItemResponse createService(CreateServiceRequest request) {
-        // Validate category exists
-        if (request.getCategoryId() != null) {
-            categoryRepository.findById(request.  getCategoryId())
-                    . orElseThrow(() -> new ResourceNotFoundException("Category not found:  " + request.getCategoryId()));
-        }
+        // Validate category exists and get category name
+        ServiceCategory category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found:  " + request.getCategoryId()));
 
         ServiceItem serviceItem = ServiceItem.builder()
                 .name(request.getName())
                 .description(request.getDescription())
                 .categoryId(request.getCategoryId())
+                .categoryName(category.getName())
                 .basePrice(request.getBasePrice())
-                .estimatedDurationMinutes(request.getEstimatedDurationMinutes())
+                .currency(request.getCurrency() != null ? request.getCurrency() : "INR")
+                .estimatedDurationMinutes(request.getEstimatedDurationMinutes() != null ? request.getEstimatedDurationMinutes() : 60)
                 .requiredSkills(request.getRequiredSkills())
                 .imageUrl(request.getImageUrl())
+                .taxPercentage(request.getTaxPercentage() != null ? request.getTaxPercentage() : 18.0)
+                .discountPercentage(request.getDiscountPercentage() != null ? request.getDiscountPercentage() : 0.0)
+                .discountValidUntil(request.getDiscountValidUntil())
                 .active(true)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
 
-        ServiceItem saved = serviceItemRepository.  save(serviceItem);
-        log.info("Service created: {}", saved.getId());
+        ServiceItem saved = serviceItemRepository.save(serviceItem);
+        log.info("Service created:  {}", saved.getId());
+
+        // Update category service count
+        category.setServicesCount(category.getServicesCount() + 1);
+        categoryRepository.save(category);
 
         return mapToResponse(saved);
     }
@@ -64,25 +72,31 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             serviceItem.setName(request.getName());
         }
         if (request.getDescription() != null) {
-            serviceItem.setDescription(request.  getDescription());
-        }
-        if (request.getCategoryId() != null) {
-            // Validate category exists
-            categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + request.getCategoryId()));
-            serviceItem.setCategoryId(request.getCategoryId());
+            serviceItem.setDescription(request.getDescription());
         }
         if (request.getBasePrice() != null) {
             serviceItem.setBasePrice(request.getBasePrice());
         }
+        if (request.getCurrency() != null) {
+            serviceItem.setCurrency(request.getCurrency());
+        }
         if (request.getEstimatedDurationMinutes() != null) {
-            serviceItem.setEstimatedDurationMinutes(request.getEstimatedDurationMinutes());
+            serviceItem.setEstimatedDurationMinutes(request. getEstimatedDurationMinutes());
         }
         if (request.getRequiredSkills() != null) {
-            serviceItem. setRequiredSkills(request. getRequiredSkills());
+            serviceItem.setRequiredSkills(request.getRequiredSkills());
         }
-        if (request.getImageUrl() != null) {
+        if (request. getImageUrl() != null) {
             serviceItem.setImageUrl(request.getImageUrl());
+        }
+        if (request. getTaxPercentage() != null) {
+            serviceItem.setTaxPercentage(request. getTaxPercentage());
+        }
+        if (request.getDiscountPercentage() != null) {
+            serviceItem.setDiscountPercentage(request. getDiscountPercentage());
+        }
+        if (request. getDiscountValidUntil() != null) {
+            serviceItem.setDiscountValidUntil(request.getDiscountValidUntil());
         }
 
         serviceItem.setUpdatedAt(Instant.now());
@@ -110,6 +124,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     public void deleteService(String serviceId) {
         ServiceItem serviceItem = getServiceEntity(serviceId);
+
+        // Decrement category service count
+        if (serviceItem.getCategoryId() != null) {
+            categoryRepository.findById(serviceItem.getCategoryId())
+                    .ifPresent(category -> {
+                        category.setServicesCount(Math.max(0, category.getServicesCount() - 1));
+                        categoryRepository.save(category);
+                    });
+        }
+
         serviceItemRepository.delete(serviceItem);
         log.info("Service deleted: {}", serviceId);
     }
@@ -119,7 +143,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     public List<ServiceItemResponse> getAllServices() {
         return serviceItemRepository.findAll().stream()
-                .map(this::mapToResponse)
+                .map(this:: mapToResponse)
                 .collect(Collectors.toList());
     }
 
@@ -127,7 +151,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     public List<ServiceItemResponse> getActiveServices() {
         return serviceItemRepository.findByActive(true).stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .collect(Collectors. toList());
     }
 
     @Override
@@ -139,7 +163,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     public List<ServiceItemResponse> getServicesByCategory(String categoryId) {
         return serviceItemRepository.findByCategoryId(categoryId).stream()
-                .map(this::mapToResponse)
+                .map(this:: mapToResponse)
                 .collect(Collectors.toList());
     }
 
@@ -152,7 +176,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             services = serviceItemRepository.findByCategoryIdAndActive(categoryId, active);
         } else if (categoryId != null) {
             // Only category filter
-            services = serviceItemRepository. findByCategoryId(categoryId);
+            services = serviceItemRepository.findByCategoryId(categoryId);
         } else if (active != null) {
             // Only active filter
             services = serviceItemRepository.findByActive(active);
@@ -174,17 +198,17 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
         if (query != null && ! query.isEmpty() && skill != null && !skill.isEmpty()) {
             // Search by both query and skill
-            List<ServiceItem> byName = serviceItemRepository.  findByNameContainingIgnoreCase(query);
+            List<ServiceItem> byName = serviceItemRepository.findByNameContainingIgnoreCase(query);
             List<ServiceItem> bySkill = serviceItemRepository. findByRequiredSkillsContainingIgnoreCase(skill);
 
             // Intersection of both results
             services = byName.stream()
-                    .filter(bySkill:: contains)
+                    .filter(bySkill::contains)
                     .collect(Collectors.toList());
-        } else if (query != null && !  query.isEmpty()) {
+        } else if (query != null && ! query.isEmpty()) {
             // Search by query only
             services = serviceItemRepository.findByNameContainingIgnoreCase(query);
-        } else if (skill != null && !skill.isEmpty()) {
+        } else if (skill != null && ! skill.isEmpty()) {
             // Search by skill only
             services = serviceItemRepository.findByRequiredSkillsContainingIgnoreCase(skill);
         } else {
@@ -200,32 +224,49 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     // ==================== HELPER METHODS ====================
 
     private ServiceItem getServiceEntity(String serviceId) {
-        return serviceItemRepository.  findById(serviceId)
-                .orElseThrow(() -> new ResourceNotFoundException("Service not found:  " + serviceId));
+        return serviceItemRepository.findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found: " + serviceId));
     }
 
     private ServiceItemResponse mapToResponse(ServiceItem serviceItem) {
-        // Get category name if category exists
-        String categoryName = null;
-        if (serviceItem. getCategoryId() != null) {
-            categoryName = categoryRepository.findById(serviceItem.getCategoryId())
-                    .map(cat -> cat.getName())
-                    .orElse(null);
-        }
+        // Calculate pricing details
+        PricingDetailsResponse pricingDetails = calculatePricing(serviceItem);
 
         return ServiceItemResponse.builder()
                 .id(serviceItem.getId())
-                .name(serviceItem.getName())
+                .name(serviceItem. getName())
                 .description(serviceItem.getDescription())
                 .categoryId(serviceItem.getCategoryId())
-                .categoryName(categoryName)
+                .categoryName(serviceItem.getCategoryName())
                 .basePrice(serviceItem.getBasePrice())
+                .currency(serviceItem.getCurrency())
                 .estimatedDurationMinutes(serviceItem.getEstimatedDurationMinutes())
                 .requiredSkills(serviceItem.getRequiredSkills())
                 .imageUrl(serviceItem.getImageUrl())
                 .active(serviceItem.isActive())
+                .pricingDetails(pricingDetails)
                 .createdAt(serviceItem.getCreatedAt())
-                .updatedAt(serviceItem.  getUpdatedAt())
+                .updatedAt(serviceItem.getUpdatedAt())
+                .build();
+    }
+
+    private PricingDetailsResponse calculatePricing(ServiceItem serviceItem) {
+        double basePrice = serviceItem.getBasePrice();
+        double taxPercentage = serviceItem.getTaxPercentage();
+        double discountPercentage = serviceItem. getDiscountPercentage();
+
+        double taxAmount = basePrice * (taxPercentage / 100);
+        double discountAmount = basePrice * (discountPercentage / 100);
+        double finalPrice = basePrice + taxAmount - discountAmount;
+
+        return PricingDetailsResponse. builder()
+                .basePrice(basePrice)
+                .taxPercentage(taxPercentage)
+                .taxAmount(Math.round(taxAmount * 100.0) / 100.0)
+                .discountPercentage(discountPercentage)
+                .discountAmount(Math.round(discountAmount * 100.0) / 100.0)
+                .finalPrice(Math.round(finalPrice * 100.0) / 100.0)
+                .discountValidUntil(serviceItem.getDiscountValidUntil())
                 .build();
     }
 }

@@ -1,20 +1,20 @@
-package com.app.service_catalog.controller;
+package com.app.service_catalog. controller;
 
-import com. app.service_catalog.dto. request.CreateCategoryRequest;
+import com.app. service_catalog.dto.request. CreateCategoryRequest;
 import com. app.service_catalog.dto. request.ReorderCategoryRequest;
 import com.app.service_catalog.dto.request.UpdateCategoryRequest;
 import com.app.service_catalog.dto.request.UpdateCategoryStatusRequest;
-import com.app.service_catalog.model.ServiceCategory;
+import com. app.service_catalog.model.ServiceCategory;
 import com. app.service_catalog.service. CategoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j. Slf4j;
 import org.springframework.http.HttpStatus;
-import org.  springframework.http.ResponseEntity;
-import org.springframework.security.access. prepost.PreAuthorize;
-import org.springframework.web. bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost. PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
-import java. util.  List;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -37,20 +37,20 @@ public class CategoryController {
                 .name(request.getName())
                 .description(request.getDescription())
                 .iconUrl(request.getIconUrl())
-                .displayOrder(request. getDisplayOrder())
+                .displayOrder(request.getDisplayOrder())
                 .build();
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(categoryService.  createCategory(category));
+                .body(categoryService.createCategory(category));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceCategory> update(
             @PathVariable("id") String id,
-            @Valid @RequestBody UpdateCategoryRequest request) {
+            @RequestBody UpdateCategoryRequest request) {
         log.info("Updating category: {}", id);
-        return ResponseEntity. ok(categoryService.updateCategory(id, request));
+        return ResponseEntity.ok(categoryService.updateCategory(id, request));
     }
 
     @PutMapping("/{id}/status")
@@ -66,8 +66,8 @@ public class CategoryController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> reorder(@RequestBody List<ReorderCategoryRequest> requests) {
         log.info("Reordering {} categories", requests.size());
-        categoryService.  reorderCategories(requests);
-        return ResponseEntity.ok().build();
+        categoryService.reorderCategories(requests);
+        return ResponseEntity. ok().build();
     }
 
     @DeleteMapping("/{id}")
@@ -75,45 +75,37 @@ public class CategoryController {
     public ResponseEntity<Void> delete(@PathVariable("id") String id) {
         log.info("Deleting category: {}", id);
         categoryService.deleteCategory(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity. noContent().build();
     }
 
     // =====================
-    // GET CATEGORIES - With Query Parameters
+    // ADMIN & SERVICE MANAGER
     // =====================
 
-    /**
-     * Get categories with optional active filter
-     *
-     * Examples:
-     * - GET /api/services/categories              → All categories (admin/manager)
-     * - GET /api/services/categories?active=true  → Active categories only
-     */
     @GetMapping
-    public ResponseEntity<List<ServiceCategory>> getCategories(
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
+    public ResponseEntity<List<ServiceCategory>> getAll(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
         log.debug("Getting categories - active: {}", active);
 
-        if (active == null) {
-            return ResponseEntity.ok(categoryService. getAllCategories());
+        if (active != null) {
+            return ResponseEntity.ok(categoryService. getCategories(active));
         }
 
-        return ResponseEntity.ok(categoryService.getCategories(active));
+        return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
-    /**
-     * Get active categories (PUBLIC - backward compatible)
-     */
+    // =====================
+    // PUBLIC - No auth required
+    // =====================
+
     @GetMapping("/active")
     public ResponseEntity<List<ServiceCategory>> getActive() {
         log.debug("Getting active categories");
         return ResponseEntity.ok(categoryService.getActiveCategories());
     }
 
-    /**
-     * Get single category by ID
-     */
     @GetMapping("/{id}")
     public ResponseEntity<ServiceCategory> getById(@PathVariable String id) {
         log.debug("Getting category: {}", id);

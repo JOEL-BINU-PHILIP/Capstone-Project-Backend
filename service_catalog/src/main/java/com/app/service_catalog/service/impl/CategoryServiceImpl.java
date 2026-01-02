@@ -1,18 +1,17 @@
 package com. app.service_catalog.service. impl;
 
 import com.app. service_catalog.dto.request. ReorderCategoryRequest;
-import com.app.service_catalog. dto.request.UpdateCategoryRequest;
-import com.app.service_catalog.exception.DuplicateResourceException;
-import com.app.service_catalog. exception.ResourceNotFoundException;
-import com. app.  service_catalog.model.ServiceCategory;
+import com.app.service_catalog.dto.request.UpdateCategoryRequest;
+import com.app.service_catalog.exception.ResourceNotFoundException;
+import com. app.service_catalog.model. ServiceCategory;
 import com.app.service_catalog.repository.ServiceCategoryRepository;
-import com.app.  service_catalog.repository.ServiceItemRepository;
+import com. app.service_catalog.repository.ServiceItemRepository;
 import com.app.service_catalog.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j. Slf4j;
-import org.springframework. stereotype.Service;
+import org. springframework.stereotype.Service;
 
-import java. time.Instant;
+import java.time.Instant;
 import java.util.List;
 
 @Slf4j
@@ -27,16 +26,12 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public ServiceCategory createCategory(ServiceCategory category) {
-        // Check for duplicate name
-        if (categoryRepository.existsByNameIgnoreCase(category. getName())) {
-            throw new DuplicateResourceException("Category with name '" + category.getName() + "' already exists");
-        }
-
         category.setActive(true);
+        category.setServicesCount(0);
         category.setCreatedAt(Instant.now());
 
-        ServiceCategory saved = categoryRepository.save(category);
-        log.info("Category created:  {}", saved.getId());
+        ServiceCategory saved = categoryRepository. save(category);
+        log.info("Category created: {}", saved.getId());
 
         return saved;
     }
@@ -48,15 +43,10 @@ public class CategoryServiceImpl implements CategoryService {
         ServiceCategory category = getCategoryById(id);
 
         if (request.getName() != null) {
-            // Check for duplicate name (excluding current category)
-            if (!category.getName().equalsIgnoreCase(request.getName()) &&
-                    categoryRepository.existsByNameIgnoreCase(request.getName())) {
-                throw new DuplicateResourceException("Category with name '" + request.getName() + "' already exists");
-            }
-            category.setName(request.getName());
+            category.setName(request. getName());
         }
         if (request.getDescription() != null) {
-            category. setDescription(request.getDescription());
+            category.setDescription(request.getDescription());
         }
         if (request.getIconUrl() != null) {
             category.setIconUrl(request. getIconUrl());
@@ -65,10 +55,8 @@ public class CategoryServiceImpl implements CategoryService {
             category.setDisplayOrder(request. getDisplayOrder());
         }
 
-        category.setUpdatedAt(Instant.now());
-
-        ServiceCategory saved = categoryRepository.save(category);
-        log.info("Category updated:  {}", id);
+        ServiceCategory saved = categoryRepository. save(category);
+        log.info("Category updated: {}", id);
 
         return saved;
     }
@@ -78,17 +66,17 @@ public class CategoryServiceImpl implements CategoryService {
         ServiceCategory category = getCategoryById(id);
         category.setActive(active);
 
-        ServiceCategory saved = categoryRepository.save(category);
-        log.info("Category {} status updated to: {}", id, active);
+        ServiceCategory saved = categoryRepository. save(category);
+        log.info("Category {} status updated to:  {}", id, active);
 
         return saved;
     }
 
     @Override
     public void reorderCategories(List<ReorderCategoryRequest> requests) {
-        for (ReorderCategoryRequest request : requests) {
-            ServiceCategory category = getCategoryById(request.getCategoryId());
-            category. setDisplayOrder(request.  getDisplayOrder());
+        for (ReorderCategoryRequest request :  requests) {
+            ServiceCategory category = getCategoryById(request.getId());
+            category.setDisplayOrder(request.getDisplayOrder());
             categoryRepository.save(category);
         }
         log.info("Reordered {} categories", requests.size());
@@ -107,14 +95,14 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         categoryRepository.delete(category);
-        log.info("Category deleted:   {}", id);
+        log.info("Category deleted: {}", id);
     }
 
     // ==================== GET CATEGORIES ====================
 
     @Override
     public List<ServiceCategory> getAllCategories() {
-        return categoryRepository.findAll();
+        return categoryRepository. findAll();
     }
 
     @Override
