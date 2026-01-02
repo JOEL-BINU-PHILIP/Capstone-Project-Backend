@@ -42,7 +42,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .basePrice(request.getBasePrice())
                 .estimatedDurationMinutes(request.getEstimatedDurationMinutes())
                 .requiredSkills(request.getRequiredSkills())
-                .iconUrl(request.getIconUrl())
+                .imageUrl(request.getImageUrl())
                 .active(true)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -81,8 +81,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (request.getRequiredSkills() != null) {
             serviceItem. setRequiredSkills(request. getRequiredSkills());
         }
-        if (request.getIconUrl() != null) {
-            serviceItem.setIconUrl(request.getIconUrl());
+        if (request.getImageUrl() != null) {
+            serviceItem.setImageUrl(request.getImageUrl());
         }
 
         serviceItem.setUpdatedAt(Instant.now());
@@ -222,7 +222,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .basePrice(serviceItem.getBasePrice())
                 .estimatedDurationMinutes(serviceItem.getEstimatedDurationMinutes())
                 .requiredSkills(serviceItem.getRequiredSkills())
-                .iconUrl(serviceItem.getIconUrl())
+                .imageUrl(serviceItem.getImageUrl())
                 .active(serviceItem.isActive())
                 .createdAt(serviceItem.getCreatedAt())
                 .updatedAt(serviceItem.  getUpdatedAt())

@@ -34,7 +34,6 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setActive(true);
         category.setCreatedAt(Instant.now());
-        category.setUpdatedAt(Instant. now());
 
         ServiceCategory saved = categoryRepository.save(category);
         log.info("Category created:  {}", saved.getId());
@@ -78,7 +77,6 @@ public class CategoryServiceImpl implements CategoryService {
     public ServiceCategory updateCategoryStatus(String id, boolean active) {
         ServiceCategory category = getCategoryById(id);
         category.setActive(active);
-        category.setUpdatedAt(Instant.now());
 
         ServiceCategory saved = categoryRepository.save(category);
         log.info("Category {} status updated to: {}", id, active);
@@ -89,9 +87,8 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public void reorderCategories(List<ReorderCategoryRequest> requests) {
         for (ReorderCategoryRequest request : requests) {
-            ServiceCategory category = getCategoryById(request. getCategoryId());
+            ServiceCategory category = getCategoryById(request.getCategoryId());
             category. setDisplayOrder(request.  getDisplayOrder());
-            category. setUpdatedAt(Instant. now());
             categoryRepository.save(category);
         }
         log.info("Reordered {} categories", requests.size());

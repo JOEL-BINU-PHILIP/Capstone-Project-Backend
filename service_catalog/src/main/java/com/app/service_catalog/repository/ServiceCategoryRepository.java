@@ -15,6 +15,4 @@ public interface ServiceCategoryRepository extends MongoRepository<ServiceCatego
     // Find by active status
     List<ServiceCategory> findByActive(boolean active);
 
-    // Find all ordered by display order
-    List<ServiceCategory> findAllByOrderByDisplayOrderAsc();
 }
