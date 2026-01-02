@@ -1,15 +1,15 @@
 package com.app.billing.service;
 
 import com.app.billing.dto.request.CreateInvoiceRequest;
-import com.app.billing.dto.request.PayInvoiceRequest;
-import com.app.billing.dto.response.InvoiceResponse;
-import com. app.billing.dto.response.RevenueReportResponse;
-import com.app. billing.model.InvoiceStatus;
+import com.app.billing.dto. request.PayInvoiceRequest;
+import com.app.billing.dto. response.InvoiceResponse;
+import com.app.billing. dto.response.RevenueReportResponse;
+import com.app.billing.model.InvoiceStatus;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain. Pageable;
 
 import java.time.LocalDate;
-import java.util. List;
+import java. util.List;
 
 public interface InvoiceService {
 
@@ -21,7 +21,24 @@ public interface InvoiceService {
     InvoiceResponse getInvoiceByNumber(String invoiceNumber);
     InvoiceResponse getInvoiceByBookingId(String bookingId);
 
-    // List
+    // ========== NEW:  Unified List Method ==========
+    /**
+     * Get invoices with optional filters
+     * @param customerId - Filter by customer ID (null for all)
+     * @param status - Filter by status (null for all)
+     * @param currentUser - Current authenticated user (for "me" filter)
+     * @param isManager - Whether the current user is a manager/admin
+     * @param pageable - Pagination parameters
+     */
+    Page<InvoiceResponse> getInvoices(
+            String customerId,
+            InvoiceStatus status,
+            String currentUser,
+            boolean isManager,
+            Pageable pageable
+    );
+
+    // ========== KEEP: Legacy methods for backward compatibility (can be deprecated) ==========
     List<InvoiceResponse> getCustomerInvoices(String customerId);
     Page<InvoiceResponse> getCustomerInvoicesPaged(String customerId, Pageable pageable);
     List<InvoiceResponse> getInvoicesByStatus(InvoiceStatus status);

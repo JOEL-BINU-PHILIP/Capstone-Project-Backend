@@ -584,4 +584,49 @@ public class InvoiceServiceImpl implements InvoiceService {
                     invoice.getInvoiceNumber(), e.getMessage());
         }
     }
+    // ========== NEW:  Unified Get Invoices Method ==========
+
+    @Override
+    public Page<InvoiceResponse> getInvoices(
+            String customerId,
+            InvoiceStatus status,
+            String currentUser,
+            boolean isManager,
+            Pageable pageable
+    ) {
+        Page<Invoice> invoices;
+
+        // Determine effective customer ID
+        String effectiveCustomerId = customerId;
+
+        // If not a manager, force filter to only current user's invoices
+        if (!isManager) {
+            effectiveCustomerId = currentUser;
+            log.debug("Non-manager user {} - filtering to own invoices only", currentUser);
+        }
+
+        // Apply filters based on what's provided
+        if (effectiveCustomerId != null && status != null) {
+            // Both customer and status filter
+            invoices = invoiceRepository.findByCustomerIdAndStatus(effectiveCustomerId, status, pageable);
+            log.debug("Filtering invoices by customerId:  {} and status: {}", effectiveCustomerId, status);
+
+        } else if (effectiveCustomerId != null) {
+            // Only customer filter
+            invoices = invoiceRepository.findByCustomerId(effectiveCustomerId, pageable);
+            log.debug("Filtering invoices by customerId:  {}", effectiveCustomerId);
+
+        } else if (status != null) {
+            // Only status filter (manager/admin only)
+            invoices = invoiceRepository. findByStatus(status, pageable);
+            log.debug("Filtering invoices by status: {}", status);
+
+        } else {
+            // No filters - return all (manager/admin only)
+            invoices = invoiceRepository.findAll(pageable);
+            log.debug("Returning all invoices (no filters)");
+        }
+
+        return invoices. map(this::toResponse);
+    }
 }

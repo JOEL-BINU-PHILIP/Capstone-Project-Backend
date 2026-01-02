@@ -1,24 +1,25 @@
-package com.app.billing.controller;
+package com.app. billing.controller;
 
-import com.app.billing.dto.request.CreateInvoiceRequest;
-import com.app.billing.dto.request.PayInvoiceRequest;
-import com.app.billing.dto.response.ApiResponse;
-import com.app. billing.dto.response.InvoiceResponse;
-import com.app.billing.dto.response.RevenueReportResponse;
+import com.app. billing.dto.request.CreateInvoiceRequest;
+import com.app.billing. dto.request.PayInvoiceRequest;
+import com.app.billing.dto. response.ApiResponse;
+import com.app.billing. dto.response.InvoiceResponse;
+import com.app. billing.dto.response.RevenueReportResponse;
 import com.app.billing.model.InvoiceStatus;
-import com.app.billing.service. InvoiceService;
+import com.app.billing.service.InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j. Slf4j;
-import org. springframework.data.domain.Page;
-import org.springframework.data. domain.Pageable;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain. Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework. http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org. springframework.http.ResponseEntity;
+import org.springframework.security. access.prepost. PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core. GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -43,11 +44,11 @@ public class InvoiceController {
             @Valid @RequestBody CreateInvoiceRequest request,
             Authentication authentication
     ) {
-        String createdBy = authentication.getName();
+        String createdBy = authentication. getName();
         InvoiceResponse response = invoiceService.createInvoice(request, createdBy);
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse. success("Invoice created successfully", response));
+        return ResponseEntity. status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Invoice created successfully", response));
     }
 
     // ==================== READ ====================
@@ -60,8 +61,8 @@ public class InvoiceController {
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceById(
             @PathVariable String invoiceId
     ) {
-        InvoiceResponse response = invoiceService.getInvoiceById(invoiceId);
-        return ResponseEntity.ok(ApiResponse. success(response));
+        InvoiceResponse response = invoiceService. getInvoiceById(invoiceId);
+        return ResponseEntity. ok(ApiResponse. success(response));
     }
 
     /**
@@ -72,7 +73,7 @@ public class InvoiceController {
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceByNumber(
             @PathVariable String invoiceNumber
     ) {
-        InvoiceResponse response = invoiceService. getInvoiceByNumber(invoiceNumber);
+        InvoiceResponse response = invoiceService.getInvoiceByNumber(invoiceNumber);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -88,23 +89,67 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    // ==================== LIST ====================
+    // ==================== LIST (CONSOLIDATED) ====================
 
     /**
-     * Get all invoices (paginated) - Manager/Admin only
+     * Get invoices with optional filters
+     *
+     * Usage examples:
+     * - GET /api/billing/invoices                           -> All invoices (Manager/Admin)
+     * - GET /api/billing/invoices?user=me                   -> My invoices (Customer)
+     * - GET /api/billing/invoices? customerId={id}           -> By customer (Manager/Admin)
+     * - GET /api/billing/invoices?status=PENDING            -> By status (Manager/Admin)
+     * - GET /api/billing/invoices?customerId={id}&status=PAID -> Combined filters
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getAllInvoices(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getInvoices(
+            @RequestParam(required = false) String user,
+            @RequestParam(required = false) String customerId,
+            @RequestParam(required = false) InvoiceStatus status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication
     ) {
-        Page<InvoiceResponse> response = invoiceService.getAllInvoicesPaged(pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        String currentUser = authentication.getName();
+        boolean isManager = isManagerOrAdmin(authentication);
+
+        // Determine effective customer ID
+        String effectiveCustomerId = null;
+
+        if ("me".equalsIgnoreCase(user)) {
+            // User wants their own invoices
+            effectiveCustomerId = currentUser;
+        } else if (customerId != null) {
+            // Manager filtering by specific customer
+            if (! isManager) {
+                // Non-managers can only see their own invoices
+                log.warn("Customer {} attempted to view invoices for customer {}", currentUser, customerId);
+                effectiveCustomerId = currentUser;
+            } else {
+                effectiveCustomerId = customerId;
+            }
+        } else if (! isManager) {
+            // Non-managers with no filter should only see their own invoices
+            effectiveCustomerId = currentUser;
+        }
+
+        Page<InvoiceResponse> response = invoiceService. getInvoices(
+                effectiveCustomerId,
+                status,
+                currentUser,
+                isManager,
+                pageable
+        );
+
+        return ResponseEntity. ok(ApiResponse. success(response));
     }
 
+    // ==================== DEPRECATED ENDPOINTS (Keep for backward compatibility) ====================
+
     /**
-     * Get invoices for logged-in customer
+     * @deprecated Use GET /api/billing/invoices? user=me instead
      */
+    @Deprecated
     @GetMapping("/my-invoices")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getMyInvoices(
@@ -116,34 +161,35 @@ public class InvoiceController {
     }
 
     /**
-     * Get invoices by customer ID - Manager/Admin only
+     * @deprecated Use GET /api/billing/invoices?customerId={id} instead
      */
+    @Deprecated
     @GetMapping("/customer/{customerId}")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getCustomerInvoices(
             @PathVariable String customerId
     ) {
-        List<InvoiceResponse> response = invoiceService.getCustomerInvoices(customerId);
+        List<InvoiceResponse> response = invoiceService. getCustomerInvoices(customerId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /**
-     * Get invoices by status
+     * @deprecated Use GET /api/billing/invoices?status={status} instead
      */
+    @Deprecated
     @GetMapping("/status/{status}")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<InvoiceResponse>>> getInvoicesByStatus(
             @PathVariable InvoiceStatus status
     ) {
         List<InvoiceResponse> response = invoiceService.getInvoicesByStatus(status);
-        return ResponseEntity. ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     // ==================== PAY ====================
 
     /**
      * Pay an invoice (simple button click)
-     * Can be called by Customer (for their own invoice) or Manager/Admin
      */
     @PostMapping("/{invoiceId}/pay")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
@@ -152,13 +198,9 @@ public class InvoiceController {
             @Valid @RequestBody PayInvoiceRequest request,
             Authentication authentication
     ) {
-        String paidBy = authentication.getName();
-
-        // For customers, verify they own this invoice
-        // This check can be enhanced based on your requirements
-
+        String paidBy = authentication. getName();
         InvoiceResponse response = invoiceService.payInvoice(invoiceId, request, paidBy);
-        return ResponseEntity. ok(ApiResponse.success("Payment successful!", response));
+        return ResponseEntity. ok(ApiResponse. success("Payment successful!", response));
     }
 
     // ==================== CANCEL ====================
@@ -184,8 +226,8 @@ public class InvoiceController {
     @GetMapping("/reports/revenue")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<RevenueReportResponse>> getRevenueReport(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat. ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat. ISO.DATE) LocalDate endDate
     ) {
         RevenueReportResponse response = invoiceService.getRevenueReport(startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -202,6 +244,17 @@ public class InvoiceController {
             @RequestParam String query
     ) {
         List<InvoiceResponse> response = invoiceService.searchInvoices(query);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity. ok(ApiResponse. success(response));
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    private boolean isManagerOrAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_SERVICE_MANAGER") ||
+                        role.equals("ROLE_ADMIN") ||
+                        role.equals("SERVICE_MANAGER") ||
+                        role.equals("ADMIN"));
     }
 }

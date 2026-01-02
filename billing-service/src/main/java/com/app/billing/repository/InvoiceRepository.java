@@ -1,15 +1,15 @@
-package com.app.billing.repository;
+package com. app.billing.repository;
 
-import com.app.billing.model.Invoice;
+import com. app.billing.model.Invoice;
 import com.app.billing.model.InvoiceStatus;
-import org. springframework.data.domain.Page;
-import org.springframework.data. domain.Pageable;
-import org.springframework.data.mongodb. repository.MongoRepository;
-import org.springframework.data.mongodb. repository.Query;
+import org.springframework.data. domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data. mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository. Query;
 
 import java.time. Instant;
-import java.util. List;
-import java.util. Optional;
+import java.util.List;
+import java.util.Optional;
 
 public interface InvoiceRepository extends MongoRepository<Invoice, String> {
 
@@ -30,8 +30,13 @@ public interface InvoiceRepository extends MongoRepository<Invoice, String> {
     List<Invoice> findByStatus(InvoiceStatus status);
     Page<Invoice> findByStatus(InvoiceStatus status, Pageable pageable);
 
+    // ========== NEW:  Combined Filters ==========
+
+    // By customer AND status
+    Page<Invoice> findByCustomerIdAndStatus(String customerId, InvoiceStatus status, Pageable pageable);
+
     // Date range queries
-    @Query("{'createdAt': {$gte: ?0, $lte: ?1}}")
+    @Query("{'createdAt': {$gte: ? 0, $lte: ?1}}")
     List<Invoice> findByCreatedAtBetween(Instant start, Instant end);
 
     // Statistics
@@ -39,6 +44,6 @@ public interface InvoiceRepository extends MongoRepository<Invoice, String> {
     long countByCustomerId(String customerId);
 
     // Search
-    @Query("{'$or': [{'invoiceNumber':  {$regex: ?0, $options: 'i'}}, {'customerName': {$regex: ?0, $options: 'i'}}, {'bookingNumber': {$regex: ? 0, $options: 'i'}}]}")
+    @Query("{'$or': [{'invoiceNumber': {$regex: ?0, $options: 'i'}}, {'customerName': {$regex: ?0, $options: 'i'}}, {'bookingNumber': {$regex:  ?0, $options: 'i'}}]}")
     List<Invoice> searchInvoices(String query);
 }
