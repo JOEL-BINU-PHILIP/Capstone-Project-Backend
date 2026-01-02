@@ -79,11 +79,9 @@ public class CategoryController {
     }
 
     // =====================
-    // ADMIN & SERVICE MANAGER
+    // PUBLIC - No auth required
     // =====================
-
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
     public ResponseEntity<List<ServiceCategory>> getAll(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
@@ -94,16 +92,6 @@ public class CategoryController {
         }
 
         return ResponseEntity.ok(categoryService.getAllCategories());
-    }
-
-    // =====================
-    // PUBLIC - No auth required
-    // =====================
-
-    @GetMapping("/active")
-    public ResponseEntity<List<ServiceCategory>> getActive() {
-        log.debug("Getting active categories");
-        return ResponseEntity.ok(categoryService.getActiveCategories());
     }
 
     @GetMapping("/{id}")

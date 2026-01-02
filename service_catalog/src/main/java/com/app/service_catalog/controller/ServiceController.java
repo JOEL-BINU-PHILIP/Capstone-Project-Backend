@@ -61,11 +61,11 @@ public class ServiceController {
     }
 
     // =====================
-    // ADMIN & SERVICE MANAGER
+    // PUBLIC - No auth required
     // =====================
 
+
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
     public ResponseEntity<List<ServiceItemResponse>> getAll(
             @RequestParam(value = "categoryId", required = false) String categoryId,
             @RequestParam(value = "active", required = false) Boolean active
@@ -78,16 +78,6 @@ public class ServiceController {
         }
 
         return ResponseEntity.ok(serviceItemService.getAllServices());
-    }
-
-    // =====================
-    // PUBLIC - No auth required
-    // =====================
-
-    @GetMapping("/active")
-    public ResponseEntity<List<ServiceItemResponse>> getActiveServices() {
-        log.debug("Getting active services");
-        return ResponseEntity.ok(serviceItemService.getActiveServices());
     }
 
     @GetMapping("/{serviceId}")
