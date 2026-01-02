@@ -119,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Generate tokens
-        String accessToken = jwtUtils.generateAccessToken(user.getUsername(), user.getRoles());
+        String accessToken = jwtUtils.generateAccessToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                 user.getId(),
                 ipAddress,
@@ -187,7 +187,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         // Generate tokens (they can use app but should verify email)
-        String accessToken = jwtUtils.generateAccessToken(user.getUsername(), user.getRoles());
+        String accessToken = jwtUtils.generateAccessToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                 user.getId(),
                 null,
@@ -265,7 +265,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         // Generate tokens
-        String accessToken = jwtUtils.generateAccessToken(user.getUsername(), user.getRoles());
+        String accessToken = jwtUtils.generateAccessToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                 user.getId(),
                 null,

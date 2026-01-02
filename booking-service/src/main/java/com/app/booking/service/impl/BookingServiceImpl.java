@@ -821,4 +821,70 @@ public class BookingServiceImpl implements BookingService {
                     eventType, booking.getBookingNumber(), e.getMessage());
         }
     }
+
+    // ==================== READ - WITH ACCESS CHECK ====================
+
+    @Override
+    public BookingResponse getBookingByIdWithAccessCheck(String bookingId, String userId, List<String> roles) {
+        Booking booking = getBookingEntity(bookingId);
+        validateAccessToBooking(booking, userId, roles);
+        return BookingMapper. toResponse(booking);
+    }
+
+    @Override
+    public BookingResponse getBookingByNumberWithAccessCheck(String bookingNumber, String userId, List<String> roles) {
+        Booking booking = bookingRepository.findByBookingNumber(bookingNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found:  " + bookingNumber));
+        validateAccessToBooking(booking, userId, roles);
+        return BookingMapper.toResponse(booking);
+    }
+
+    // ==================== READ - ALL (MANAGER) ====================
+
+    @Override
+    public List<BookingResponse> getAllBookings() {
+        return bookingRepository.findAll().stream()
+                .map(BookingMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ==================== ACCESS VALIDATION HELPER ====================
+
+    /**
+     * Validate if user has access to view/modify the booking
+     * - MANAGER/ADMIN:  Can access all bookings
+     * - TECHNICIAN: Can access only assigned bookings
+     * - CUSTOMER: Can access only own bookings
+     */
+    private void validateAccessToBooking(Booking booking, String userId, List<String> roles) {
+        // Managers and Admins can access all bookings
+        if (roles.contains("SERVICE_MANAGER") || roles.contains("ADMIN")) {
+            log.debug("Manager/Admin access granted for booking {}", booking.getId());
+            return;
+        }
+
+        // Technicians can only access bookings assigned to them
+        if (roles. contains("TECHNICIAN")) {
+            if (booking.getTechnicianId() == null || ! booking.getTechnicianId().equals(userId)) {
+                log.warn("Technician {} denied access to booking {}", userId, booking.getId());
+                throw new UnauthorizedException("You don't have access to this booking");
+            }
+            log.debug("Technician access granted for booking {}", booking.getId());
+            return;
+        }
+
+        // Customers can only access their own bookings
+        if (roles.contains("CUSTOMER")) {
+            if (! booking.getCustomerId().equals(userId)) {
+                log.warn("Customer {} denied access to booking {}", userId, booking.getId());
+                throw new UnauthorizedException("You don't have access to this booking");
+            }
+            log. debug("Customer access granted for booking {}", booking.getId());
+            return;
+        }
+
+        // Default: deny access
+        log.warn("User {} with roles {} denied access to booking {}", userId, roles, booking.getId());
+        throw new UnauthorizedException("Access denied");
+    }
 }

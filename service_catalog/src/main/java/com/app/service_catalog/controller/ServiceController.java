@@ -2,17 +2,19 @@ package com.app.service_catalog.controller;
 
 import com.app.service_catalog.dto.request.CreateServiceRequest;
 import com.app.service_catalog.dto.request.UpdateServiceRequest;
-import com.app.service_catalog.dto.response.ServiceItemResponse;
-import com.app. service_catalog.service.ServiceItemService;
-import jakarta.validation. Valid;
+import com.app.service_catalog.dto.response.  ServiceItemResponse;
+import com. app.service_catalog.service. ServiceItemService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost. PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework. http.ResponseEntity;
+import org.springframework.security.access.  prepost.PreAuthorize;
+import org.springframework.web. bind.annotation.*;
 
-import java.util.List;
+import java. util.  List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/services")
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ public class ServiceController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceItemResponse> create(@Valid @RequestBody CreateServiceRequest request) {
+        log.info("Creating service: {}", request.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(serviceItemService.createService(request));
     }
@@ -35,7 +38,8 @@ public class ServiceController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceItemResponse> update(
             @PathVariable("serviceId") String serviceId,
-            @RequestBody UpdateServiceRequest request) {
+            @Valid @RequestBody UpdateServiceRequest request) {
+        log.info("Updating service: {}", serviceId);
         return ResponseEntity.ok(serviceItemService.updateService(serviceId, request));
     }
 
@@ -44,44 +48,85 @@ public class ServiceController {
     public ResponseEntity<ServiceItemResponse> updateStatus(
             @PathVariable("serviceId") String serviceId,
             @RequestParam("active") boolean active) {
-        return ResponseEntity.ok(serviceItemService.updateServiceStatus(serviceId, active));
+        log.info("Updating service {} status to: {}", serviceId, active);
+        return ResponseEntity. ok(serviceItemService.  updateServiceStatus(serviceId, active));
     }
 
     @DeleteMapping("/{serviceId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable("serviceId") String serviceId) {
+        log.info("Deleting service: {}", serviceId);
         serviceItemService.deleteService(serviceId);
         return ResponseEntity.noContent().build();
     }
 
     // =====================
-    // ADMIN & SERVICE MANAGER
+    // GET SERVICES - With Query Parameters
     // =====================
 
+    /**
+     * Get services with optional filters
+     *
+     * Examples:
+     * - GET /api/services                       → All services (admin/manager)
+     * - GET /api/services?active=true           → Active services only
+     * - GET /api/services?categoryId=xxx        → Services in category
+     * - GET /api/services?active=true&categoryId=xxx → Active services in category
+     */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICE_MANAGER')")
-    public ResponseEntity<List<ServiceItemResponse>> getAll() {
-        return ResponseEntity.ok(serviceItemService.getAllServices());
+    public ResponseEntity<List<ServiceItemResponse>> getServices(
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestParam(value = "categoryId", required = false) String categoryId
+    ) {
+        log.debug("Getting services - active: {}, categoryId: {}", active, categoryId);
+
+        // If no filters, check role for default behavior
+        if (active == null && categoryId == null) {
+            // For public access, default to active only
+            // For admin/manager, return all (handled in service layer or by auth)
+            return ResponseEntity.ok(serviceItemService.getAllServices());
+        }
+
+        return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
     }
 
-    // =====================
-    // PUBLIC - No auth required
-    // =====================
-
+    /**
+     * Get active services (PUBLIC - backward compatible)
+     */
     @GetMapping("/active")
     public ResponseEntity<List<ServiceItemResponse>> getActiveServices() {
-        return ResponseEntity.ok(serviceItemService.getActiveServices());
+        log.debug("Getting active services");
+        return ResponseEntity.  ok(serviceItemService.getActiveServices());
     }
 
+    /**
+     * Get single service by ID
+     */
     @GetMapping("/{serviceId}")
     public ResponseEntity<ServiceItemResponse> getById(@PathVariable("serviceId") String serviceId) {
-        return ResponseEntity.ok(serviceItemService.getServiceById(serviceId));
+        log.debug("Getting service: {}", serviceId);
+        return ResponseEntity. ok(serviceItemService.getServiceById(serviceId));
     }
 
+    /**
+     * Search services
+     */
     @GetMapping("/search")
     public ResponseEntity<List<ServiceItemResponse>> search(
             @RequestParam(value = "query", required = false) String query,
             @RequestParam(value = "skill", required = false) String skill) {
+        log.debug("Searching services - query: {}, skill: {}", query, skill);
         return ResponseEntity.ok(serviceItemService.search(query, skill));
+    }
+
+    /**
+     * Get services by category
+     */
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<List<ServiceItemResponse>> getByCategory(
+            @PathVariable("categoryId") String categoryId,
+            @RequestParam(value = "active", required = false) Boolean active) {
+        log.debug("Getting services for category: {}", categoryId);
+        return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
     }
 }

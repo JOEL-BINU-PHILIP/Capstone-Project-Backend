@@ -1,238 +1,231 @@
-package com.app.service_catalog.service.impl;
+package com.app. service_catalog.service.impl;
 
 import com.app.service_catalog.dto.request.CreateServiceRequest;
-import com.app.service_catalog.dto.request.UpdateServiceRequest;
-import com.app.service_catalog.dto.response.PricingDetailsResponse;
-import com.app.service_catalog.dto.response.ServiceItemResponse;
-import com.app.service_catalog.model.ServiceCategory;
-import com.app.service_catalog.model.ServiceItem;
+import com.app. service_catalog.dto.request. UpdateServiceRequest;
+import com. app.service_catalog.dto. response.ServiceItemResponse;
+import com.app.service_catalog. exception.ResourceNotFoundException;
+import com.app.service_catalog.exception.DuplicateResourceException;
+import com.app.service_catalog. model.ServiceItem;
 import com.app.service_catalog.repository.ServiceCategoryRepository;
 import com.app.service_catalog.repository.ServiceItemRepository;
 import com.app.service_catalog.service.ServiceItemService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.  Slf4j;
+import org. springframework.  stereotype.Service;
 
-import java.awt.print.Pageable;
-import java.time.Instant;
-import java.util.List;
+import java.time. Instant;
+import java.util. List;
+import java.util. stream.  Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ServiceItemServiceImpl implements ServiceItemService {
 
-    private final ServiceItemRepository serviceRepository;
+    private final ServiceItemRepository serviceItemRepository;
     private final ServiceCategoryRepository categoryRepository;
+
+    // ==================== CREATE ====================
 
     @Override
     public ServiceItemResponse createService(CreateServiceRequest request) {
+        // Validate category exists
+        if (request.getCategoryId() != null) {
+            categoryRepository.findById(request.  getCategoryId())
+                    . orElseThrow(() -> new ResourceNotFoundException("Category not found:  " + request.getCategoryId()));
+        }
 
-        ServiceCategory category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
-        ServiceItem service = ServiceItem.builder()
-                .categoryId(category.getId())
-                .categoryName(category.getName())
+        ServiceItem serviceItem = ServiceItem.builder()
                 .name(request.getName())
                 .description(request.getDescription())
+                .categoryId(request.getCategoryId())
                 .basePrice(request.getBasePrice())
-                .currency(request.getCurrency() == null ? "USD" : request.getCurrency())
-                .estimatedDurationMinutes(
-                        request.getEstimatedDurationMinutes() == null ? 0 : request.getEstimatedDurationMinutes()
-                )
-                .imageUrl(request.getImageUrl())
+                .estimatedDurationMinutes(request.getEstimatedDurationMinutes())
                 .requiredSkills(request.getRequiredSkills())
-                .taxPercentage(request.getTaxPercentage() == null ? 0 : request.getTaxPercentage())
-                .discountPercentage(request.getDiscountPercentage() == null ? 0 : request.getDiscountPercentage())
-                .discountValidUntil(request.getDiscountValidUntil())
+                .iconUrl(request.getIconUrl())
                 .active(true)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
 
-        ServiceItem saved = serviceRepository.save(service);
+        ServiceItem saved = serviceItemRepository.  save(serviceItem);
+        log.info("Service created: {}", saved.getId());
 
-        // increment category service count
-        category.setServicesCount(category.getServicesCount() + 1);
-        categoryRepository.save(category);
+        return mapToResponse(saved);
+    }
+
+    // ==================== UPDATE ====================
+
+    @Override
+    public ServiceItemResponse updateService(String serviceId, UpdateServiceRequest request) {
+        ServiceItem serviceItem = getServiceEntity(serviceId);
+
+        if (request.getName() != null) {
+            serviceItem.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            serviceItem.setDescription(request.  getDescription());
+        }
+        if (request.getCategoryId() != null) {
+            // Validate category exists
+            categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + request.getCategoryId()));
+            serviceItem.setCategoryId(request.getCategoryId());
+        }
+        if (request.getBasePrice() != null) {
+            serviceItem.setBasePrice(request.getBasePrice());
+        }
+        if (request.getEstimatedDurationMinutes() != null) {
+            serviceItem.setEstimatedDurationMinutes(request.getEstimatedDurationMinutes());
+        }
+        if (request.getRequiredSkills() != null) {
+            serviceItem. setRequiredSkills(request. getRequiredSkills());
+        }
+        if (request.getIconUrl() != null) {
+            serviceItem.setIconUrl(request.getIconUrl());
+        }
+
+        serviceItem.setUpdatedAt(Instant.now());
+
+        ServiceItem saved = serviceItemRepository.save(serviceItem);
+        log.info("Service updated: {}", serviceId);
 
         return mapToResponse(saved);
     }
 
     @Override
-    public List<ServiceItemResponse> getAllServices() {
-        return serviceRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
-    @Override
-    public List<ServiceItemResponse> getServicesByCategory(String categoryId) {
-        return serviceRepository.findByCategoryIdAndActiveTrue(categoryId)
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
-    @Override
-    public ServiceItemResponse getServiceById(String serviceId) {
-        ServiceItem service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
-
-        return mapToResponse(service);
-    }
-
-    // -----------------------------
-    // MAPPER
-    // -----------------------------
-    private ServiceItemResponse mapToResponse(ServiceItem service) {
-
-        double taxAmount = service.getBasePrice() * service.getTaxPercentage() / 100;
-        double discountAmount = service.getBasePrice() * service.getDiscountPercentage() / 100;
-        double finalPrice = service.getBasePrice() + taxAmount - discountAmount;
-
-        PricingDetailsResponse pricing = PricingDetailsResponse.builder()
-                .basePrice(service.getBasePrice())
-                .taxPercentage(service.getTaxPercentage())
-                .taxAmount(taxAmount)
-                .discountPercentage(service.getDiscountPercentage())
-                .discountAmount(discountAmount)
-                .finalPrice(finalPrice)
-                .discountValidUntil(service.getDiscountValidUntil())
-                .build();
-
-        return ServiceItemResponse.builder()
-                .id(service.getId())
-                .categoryId(service.getCategoryId())
-                .categoryName(service.getCategoryName())
-                .name(service.getName())
-                .description(service.getDescription())
-                .basePrice(service.getBasePrice())
-                .currency(service.getCurrency())
-                .estimatedDurationMinutes(service.getEstimatedDurationMinutes())
-                .imageUrl(service.getImageUrl())
-                .active(service.isActive())
-                .requiredSkills(service.getRequiredSkills())
-                .pricingDetails(pricing)
-                .createdAt(service.getCreatedAt())
-                .updatedAt(service.getUpdatedAt())
-                .build();
-    }
-
-    @Override
-    public ServiceItemResponse updateService(String serviceId, UpdateServiceRequest request) {
-
-        ServiceItem service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
-
-        if (request.getName() != null)
-            service.setName(request.getName());
-
-        if (request.getDescription() != null)
-            service.setDescription(request.getDescription());
-
-        if (request.getBasePrice() != null)
-            service.setBasePrice(request.getBasePrice());
-
-        if (request.getCurrency() != null)
-            service.setCurrency(request.getCurrency());
-
-        if (request.getEstimatedDurationMinutes() != null)
-            service.setEstimatedDurationMinutes(request.getEstimatedDurationMinutes());
-
-        if (request.getImageUrl() != null)
-            service.setImageUrl(request.getImageUrl());
-
-        if (request.getRequiredSkills() != null)
-            service.setRequiredSkills(request.getRequiredSkills());
-
-        if (request.getTaxPercentage() != null)
-            service.setTaxPercentage(request.getTaxPercentage());
-
-        if (request.getDiscountPercentage() != null)
-            service.setDiscountPercentage(request.getDiscountPercentage());
-
-        if (request.getDiscountValidUntil() != null)
-            service.setDiscountValidUntil(request.getDiscountValidUntil());
-
-        service.setUpdatedAt(Instant.now());
-
-        return mapToResponse(serviceRepository.save(service));
-    }
-
     public ServiceItemResponse updateServiceStatus(String serviceId, boolean active) {
+        ServiceItem serviceItem = getServiceEntity(serviceId);
+        serviceItem.setActive(active);
+        serviceItem.setUpdatedAt(Instant.now());
 
-        ServiceItem service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
+        ServiceItem saved = serviceItemRepository.save(serviceItem);
+        log.info("Service {} status updated to: {}", serviceId, active);
 
-        service.setActive(active);
-        service.setUpdatedAt(Instant.now());
-
-        return mapToResponse(serviceRepository.save(service));
+        return mapToResponse(saved);
     }
 
+    // ==================== DELETE ====================
+
+    @Override
     public void deleteService(String serviceId) {
+        ServiceItem serviceItem = getServiceEntity(serviceId);
+        serviceItemRepository.delete(serviceItem);
+        log.info("Service deleted: {}", serviceId);
+    }
 
-        ServiceItem service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
+    // ==================== GET SERVICES ====================
 
-        ServiceCategory category = categoryRepository.findById(service.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
-        category.setServicesCount(Math.max(0, category.getServicesCount() - 1));
-        categoryRepository.save(category);
-
-        serviceRepository.delete(service);
+    @Override
+    public List<ServiceItemResponse> getAllServices() {
+        return serviceItemRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<ServiceItemResponse> getActiveServices() {
-        return serviceRepository.findByActiveTrue()
-                .stream()
+        return serviceItemRepository.findByActive(true).stream()
                 .map(this::mapToResponse)
-                .toList();
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public ServiceItemResponse getServiceById(String serviceId) {
+        ServiceItem serviceItem = getServiceEntity(serviceId);
+        return mapToResponse(serviceItem);
+    }
+
+    @Override
+    public List<ServiceItemResponse> getServicesByCategory(String categoryId) {
+        return serviceItemRepository.findByCategoryId(categoryId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<ServiceItemResponse> getServices(String categoryId, Boolean active) {
-
         List<ServiceItem> services;
 
         if (categoryId != null && active != null) {
-            services = serviceRepository.findByCategoryIdAndActive(categoryId, active);
+            // Both filters
+            services = serviceItemRepository.findByCategoryIdAndActive(categoryId, active);
         } else if (categoryId != null) {
-            services = serviceRepository.findByCategoryId(categoryId);
+            // Only category filter
+            services = serviceItemRepository. findByCategoryId(categoryId);
         } else if (active != null) {
-            services = serviceRepository.findByActive(active);
+            // Only active filter
+            services = serviceItemRepository.findByActive(active);
         } else {
-            services = serviceRepository.findAll();
+            // No filters
+            services = serviceItemRepository.findAll();
         }
 
-        return services.stream().map(this::mapToResponse).toList();
+        return services.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
+
+    // ==================== SEARCH ====================
 
     @Override
     public List<ServiceItemResponse> search(String query, String skill) {
+        List<ServiceItem> services;
 
-        if (query != null) {
-            return serviceRepository.findByNameContainingIgnoreCase(query)
-                    .stream().map(this::mapToResponse).toList();
+        if (query != null && ! query.isEmpty() && skill != null && !skill.isEmpty()) {
+            // Search by both query and skill
+            List<ServiceItem> byName = serviceItemRepository.  findByNameContainingIgnoreCase(query);
+            List<ServiceItem> bySkill = serviceItemRepository. findByRequiredSkillsContainingIgnoreCase(skill);
+
+            // Intersection of both results
+            services = byName.stream()
+                    .filter(bySkill:: contains)
+                    .collect(Collectors.toList());
+        } else if (query != null && !  query.isEmpty()) {
+            // Search by query only
+            services = serviceItemRepository.findByNameContainingIgnoreCase(query);
+        } else if (skill != null && !skill.isEmpty()) {
+            // Search by skill only
+            services = serviceItemRepository.findByRequiredSkillsContainingIgnoreCase(skill);
+        } else {
+            // No search criteria - return active services
+            services = serviceItemRepository.findByActive(true);
         }
 
-        if (skill != null) {
-            return serviceRepository.findByRequiredSkillsContainingIgnoreCase(skill)
-                    .stream().map(this::mapToResponse).toList();
-        }
-
-        return List.of();
+        return services.stream()
+                .map(this:: mapToResponse)
+                .collect(Collectors.toList());
     }
 
-//    @Override
-//    public Page<ServiceItemResponse> getPaged(Pageable pageable) {
-//        return serviceRepository.findAll(pageable)
-//                .map(this::mapToResponse);
-//    }
+    // ==================== HELPER METHODS ====================
 
+    private ServiceItem getServiceEntity(String serviceId) {
+        return serviceItemRepository.  findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found:  " + serviceId));
+    }
 
+    private ServiceItemResponse mapToResponse(ServiceItem serviceItem) {
+        // Get category name if category exists
+        String categoryName = null;
+        if (serviceItem. getCategoryId() != null) {
+            categoryName = categoryRepository.findById(serviceItem.getCategoryId())
+                    .map(cat -> cat.getName())
+                    .orElse(null);
+        }
+
+        return ServiceItemResponse.builder()
+                .id(serviceItem.getId())
+                .name(serviceItem.getName())
+                .description(serviceItem.getDescription())
+                .categoryId(serviceItem.getCategoryId())
+                .categoryName(categoryName)
+                .basePrice(serviceItem.getBasePrice())
+                .estimatedDurationMinutes(serviceItem.getEstimatedDurationMinutes())
+                .requiredSkills(serviceItem.getRequiredSkills())
+                .iconUrl(serviceItem.getIconUrl())
+                .active(serviceItem.isActive())
+                .createdAt(serviceItem.getCreatedAt())
+                .updatedAt(serviceItem.  getUpdatedAt())
+                .build();
+    }
 }

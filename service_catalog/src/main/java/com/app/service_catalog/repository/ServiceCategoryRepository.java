@@ -1,15 +1,20 @@
-package com.app.service_catalog.repository;
+package com.app.service_catalog. repository;
 
-import com.app.service_catalog.model.ServiceCategory;
+import com.app.  service_catalog.model.ServiceCategory;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
 
-public interface ServiceCategoryRepository
-        extends MongoRepository<ServiceCategory, String> {
+public interface ServiceCategoryRepository extends MongoRepository<ServiceCategory, String> {
 
     List<ServiceCategory> findByActiveTrueOrderByDisplayOrderAsc();
 
-    // ✅ Used to block duplicates BEFORE saving
+    // Used to block duplicates BEFORE saving
     boolean existsByNameIgnoreCase(String name);
+
+    // Find by active status
+    List<ServiceCategory> findByActive(boolean active);
+
+    // Find all ordered by display order
+    List<ServiceCategory> findAllByOrderByDisplayOrderAsc();
 }

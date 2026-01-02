@@ -1,9 +1,9 @@
-package com. app.booking.service;
+package com.app.booking.service;
 
-import com.app.booking.dto. request.*;
+import com.app.booking.dto.request.*;
 import com.app.booking. dto.response.BookingResponse;
 import com.app.booking. dto.response.BookingStatsResponse;
-import com.app. booking.model.BookingStatus;
+import com.app.booking.model.BookingStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -11,14 +11,50 @@ import java.util.List;
 
 public interface BookingService {
 
-    // ==================== CUSTOMER OPERATIONS ====================
+    // ==================== CREATE ====================
 
     BookingResponse createBooking(CreateBookingRequest request, String customerId,
                                   String customerName, String customerEmail, String customerPhone);
 
+    // ==================== READ - WITH ACCESS CHECK (NEW) ====================
+
+    BookingResponse getBookingByIdWithAccessCheck(String bookingId, String userId, List<String> roles);
+
+    BookingResponse getBookingByNumberWithAccessCheck(String bookingNumber, String userId, List<String> roles);
+
+    // ==================== READ - BASIC ====================
+
+    BookingResponse getBookingById(String bookingId);
+
+    BookingResponse getBookingByNumber(String bookingNumber);
+
+    // ==================== READ - BY USER ====================
+
     List<BookingResponse> getCustomerBookings(String customerId);
 
     Page<BookingResponse> getCustomerBookingsPaged(String customerId, Pageable pageable);
+
+    List<BookingResponse> getTechnicianBookings(String technicianId);
+
+    Page<BookingResponse> getTechnicianBookingsPaged(String technicianId, Pageable pageable);
+
+    List<BookingResponse> getTechnicianActiveBookings(String technicianId);
+
+    // ==================== READ - ALL (MANAGER) ====================
+
+    List<BookingResponse> getAllBookings();
+
+    Page<BookingResponse> getAllBookingsPaged(Pageable pageable);
+
+    List<BookingResponse> getPendingBookings();
+
+    List<BookingResponse> getBookingsByStatus(BookingStatus status);
+
+    BookingStatsResponse getBookingStats();
+
+    List<BookingResponse> searchBookings(String query);
+
+    // ==================== CUSTOMER ACTIONS ====================
 
     BookingResponse rescheduleBooking(String bookingId, RescheduleBookingRequest request, String customerId);
 
@@ -28,13 +64,7 @@ public interface BookingService {
 
     String generateCompletionOtp(String bookingId, String customerId);
 
-    // ==================== TECHNICIAN OPERATIONS ====================
-
-    List<BookingResponse> getTechnicianBookings(String technicianId);
-
-    Page<BookingResponse> getTechnicianBookingsPaged(String technicianId, Pageable pageable);
-
-    List<BookingResponse> getTechnicianActiveBookings(String technicianId);
+    // ==================== TECHNICIAN ACTIONS ====================
 
     BookingResponse confirmBooking(String bookingId, String technicianId);
 
@@ -44,27 +74,11 @@ public interface BookingService {
 
     BookingResponse completeService(String bookingId, CompleteBookingRequest request, String technicianId);
 
-    // ==================== MANAGER OPERATIONS ====================
-
-    List<BookingResponse> getPendingBookings();
-
-    List<BookingResponse> getBookingsByStatus(BookingStatus status);
-
-    Page<BookingResponse> getAllBookingsPaged(Pageable pageable);
+    // ==================== MANAGER ACTIONS ====================
 
     BookingResponse assignTechnician(String bookingId, AssignTechnicianRequest request, String managerId);
 
     BookingResponse reassignTechnician(String bookingId, AssignTechnicianRequest request, String managerId);
 
     BookingResponse cancelBookingByManager(String bookingId, CancelBookingRequest request, String managerId);
-
-    BookingStatsResponse getBookingStats();
-
-    List<BookingResponse> searchBookings(String query);
-
-    // ==================== COMMON ====================
-
-    BookingResponse getBookingById(String bookingId);
-
-    BookingResponse getBookingByNumber(String bookingNumber);
 }

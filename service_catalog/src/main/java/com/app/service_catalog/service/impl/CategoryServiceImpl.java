@@ -1,111 +1,141 @@
-package com.app.service_catalog.service.impl;
+package com. app.service_catalog.service. impl;
 
-import com.app.service_catalog.dto.request.ReorderCategoryRequest;
-import com.app.service_catalog.dto.request.UpdateCategoryRequest;
-import com.app.service_catalog.model.ServiceCategory;
+import com.app. service_catalog.dto.request. ReorderCategoryRequest;
+import com.app.service_catalog. dto.request.UpdateCategoryRequest;
+import com.app.service_catalog.exception.DuplicateResourceException;
+import com.app.service_catalog. exception.ResourceNotFoundException;
+import com. app.  service_catalog.model.ServiceCategory;
 import com.app.service_catalog.repository.ServiceCategoryRepository;
+import com.app.  service_catalog.repository.ServiceItemRepository;
 import com.app.service_catalog.service.CategoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import lombok.extern.slf4j. Slf4j;
+import org.springframework. stereotype.Service;
 
-import java.time.Instant;
+import java. time.Instant;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
-    private final ServiceCategoryRepository repository;
+    private final ServiceCategoryRepository categoryRepository;
+    private final ServiceItemRepository serviceItemRepository;
+
+    // ==================== CREATE ====================
 
     @Override
     public ServiceCategory createCategory(ServiceCategory category) {
-
-        // BLOCK DUPLICATES
-        if (repository.existsByNameIgnoreCase(category.getName())) {
-            throw new RuntimeException("Category with this name already exists");
+        // Check for duplicate name
+        if (categoryRepository.existsByNameIgnoreCase(category. getName())) {
+            throw new DuplicateResourceException("Category with name '" + category.getName() + "' already exists");
         }
 
         category.setActive(true);
-        category.setServicesCount(0);
         category.setCreatedAt(Instant.now());
+        category.setUpdatedAt(Instant. now());
 
-        return repository.save(category);
+        ServiceCategory saved = categoryRepository.save(category);
+        log.info("Category created:  {}", saved.getId());
+
+        return saved;
     }
 
-    @Override
-    public List<ServiceCategory> getAllCategories() {
-        return repository.findAll();
-    }
-
-    @Override
-    public List<ServiceCategory> getActiveCategories() {
-        return repository.findByActiveTrueOrderByDisplayOrderAsc();
-    }
-
-    @Override
-    public ServiceCategory getCategoryById(String id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-    }
-
-    @Override
-    public void reorderCategories(List<ReorderCategoryRequest> requests) {
-
-        for (ReorderCategoryRequest req : requests) {
-            ServiceCategory category = repository.findById(req.getId())
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
-
-            category.setDisplayOrder(req.getDisplayOrder());
-            repository.save(category);
-        }
-    }
+    // ==================== UPDATE ====================
 
     @Override
     public ServiceCategory updateCategory(String id, UpdateCategoryRequest request) {
+        ServiceCategory category = getCategoryById(id);
 
-        ServiceCategory category = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
-        // 🚫 Prevent renaming to an existing category
-        if (request.getName() != null &&
-                !request.getName().equalsIgnoreCase(category.getName()) &&
-                repository.existsByNameIgnoreCase(request.getName())) {
-
-            throw new RuntimeException("Category with this name already exists");
+        if (request.getName() != null) {
+            // Check for duplicate name (excluding current category)
+            if (!category.getName().equalsIgnoreCase(request.getName()) &&
+                    categoryRepository.existsByNameIgnoreCase(request.getName())) {
+                throw new DuplicateResourceException("Category with name '" + request.getName() + "' already exists");
+            }
+            category.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            category. setDescription(request.getDescription());
+        }
+        if (request.getIconUrl() != null) {
+            category.setIconUrl(request. getIconUrl());
+        }
+        if (request.getDisplayOrder() != null) {
+            category.setDisplayOrder(request. getDisplayOrder());
         }
 
-        if (request.getName() != null)
-            category.setName(request.getName());
-        if (request.getDescription() != null)
-            category.setDescription(request.getDescription());
-        if (request.getIconUrl() != null)
-            category.setIconUrl(request.getIconUrl());
-        if (request.getDisplayOrder() != null)
-            category.setDisplayOrder(request.getDisplayOrder());
+        category.setUpdatedAt(Instant.now());
 
-        return repository.save(category);
+        ServiceCategory saved = categoryRepository.save(category);
+        log.info("Category updated:  {}", id);
+
+        return saved;
     }
 
     @Override
     public ServiceCategory updateCategoryStatus(String id, boolean active) {
-
-        ServiceCategory category = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
+        ServiceCategory category = getCategoryById(id);
         category.setActive(active);
-        return repository.save(category);
+        category.setUpdatedAt(Instant.now());
+
+        ServiceCategory saved = categoryRepository.save(category);
+        log.info("Category {} status updated to: {}", id, active);
+
+        return saved;
     }
 
     @Override
+    public void reorderCategories(List<ReorderCategoryRequest> requests) {
+        for (ReorderCategoryRequest request : requests) {
+            ServiceCategory category = getCategoryById(request. getCategoryId());
+            category. setDisplayOrder(request.  getDisplayOrder());
+            category. setUpdatedAt(Instant. now());
+            categoryRepository.save(category);
+        }
+        log.info("Reordered {} categories", requests.size());
+    }
+
+    // ==================== DELETE ====================
+
+    @Override
     public void deleteCategory(String id) {
+        ServiceCategory category = getCategoryById(id);
 
-        ServiceCategory category = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
-        if (category.getServicesCount() > 0) {
-            throw new RuntimeException("Cannot delete category with services");
+        // Check if category has services
+        long serviceCount = serviceItemRepository.findByCategoryId(id).size();
+        if (serviceCount > 0) {
+            throw new IllegalStateException("Cannot delete category with " + serviceCount + " services.  Remove or reassign services first.");
         }
 
-        repository.delete(category);
+        categoryRepository.delete(category);
+        log.info("Category deleted:   {}", id);
+    }
+
+    // ==================== GET CATEGORIES ====================
+
+    @Override
+    public List<ServiceCategory> getAllCategories() {
+        return categoryRepository.findAll();
+    }
+
+    @Override
+    public List<ServiceCategory> getActiveCategories() {
+        return categoryRepository. findByActiveTrueOrderByDisplayOrderAsc();
+    }
+
+    @Override
+    public ServiceCategory getCategoryById(String id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + id));
+    }
+
+    @Override
+    public List<ServiceCategory> getCategories(Boolean active) {
+        if (active != null) {
+            return categoryRepository.findByActive(active);
+        }
+        return categoryRepository.findAll();
     }
 }
