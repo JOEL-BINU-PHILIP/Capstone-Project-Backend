@@ -124,45 +124,6 @@ public class AuthController {
         );
     }
 
-    @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequestDTO request
-    ) {
-        authService.initiatePasswordReset(request.getEmail());
-        return ResponseEntity.ok(
-                new ApiResponse<>(
-                        true,
-                        "If an account exists with this email, a password reset link has been sent",
-                        null
-                )
-        );
-    }
-
-    @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequestDTO request
-    ) {
-        authService.resetPassword(request.getToken(), request.getNewPassword());
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Password reset successfully", null)
-        );
-    }
-
-    @PostMapping("/change-password")
-    public ResponseEntity<ApiResponse<Void>> changePassword(
-            @Valid @RequestBody ChangePasswordRequestDTO request,
-            @RequestAttribute("userId") String userId
-    ) {
-        authService.changePassword(
-                userId,
-                request.getCurrentPassword(),
-                request.getNewPassword()
-        );
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Password changed successfully", null)
-        );
-    }
-
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @Valid @RequestBody RefreshTokenRequestDTO request,

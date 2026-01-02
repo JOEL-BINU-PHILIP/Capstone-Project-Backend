@@ -43,8 +43,6 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/verify-email",
                                 "/api/auth/resend-verification",
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
                                 "/actuator/health",
                                 "/actuator/info"
                         ).permitAll()

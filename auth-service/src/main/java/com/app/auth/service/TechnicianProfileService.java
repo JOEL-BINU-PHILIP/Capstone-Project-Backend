@@ -1,9 +1,9 @@
-package com.app.auth.service;
+package com.app. auth.service;
 
-import com.app.auth.dto.response.TechnicianProfileResponseDTO;
-import com.app.auth.model.TechnicianProfile;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.app. auth.dto.response.TechnicianProfileResponseDTO;
+import com. app.auth.model.TechnicianProfile;
+import org.springframework.data. domain.Page;
+import org.springframework. data.domain. Pageable;
 
 import java.util.Set;
 
@@ -20,6 +20,8 @@ public interface TechnicianProfileService {
     );
 
     TechnicianProfileResponseDTO getProfileByUsername(String username);
+
+    TechnicianProfileResponseDTO getProfileById(String technicianId);
 
     void updateAvailability(String username, boolean available);
 

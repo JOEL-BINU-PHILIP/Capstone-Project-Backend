@@ -1,24 +1,27 @@
-package com.app.auth.service.impl;
+package com.app.auth.service. impl;
 
-import com.app.auth.dto.request.LoginRequestDTO;
-import com.app.auth.dto.response.AuthResponseDTO;
-import com.app.auth.exception.*;
+import com.app.auth. dto.request.LoginRequestDTO;
+import com.app.auth. dto.response.AuthResponseDTO;
+import com.app.auth.dto.response. RegistrationResponseDTO;
+import com. app.auth.exception.*;
 import com.app.auth.model.*;
-import com.app.auth.repository.UserRepository;
+import com.app.auth.repository. TechnicianProfileRepository;
+import com.app.auth. repository.UserRepository;
 import com.app.auth.security.JwtUtils;
-import com.app.auth.service.*;
+import com. app.auth.service.*;
 import com.app.auth.util.RequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation. Value;
+import org. springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework. transaction.annotation. Transactional;
 
-import java.time.Instant;
-import java.util.Set;
-import java.util.UUID;
+import java.time. Instant;
+import java.util.Optional;
+import java. util.Set;
+import java.util. UUID;
 
 @Slf4j
 @Service
@@ -26,6 +29,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
+    private final TechnicianProfileRepository technicianProfileRepository;
     private final TechnicianProfileService technicianProfileService;
     private final RefreshTokenService refreshTokenService;
     private final AuditLogService auditLogService;
@@ -34,23 +38,20 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
 
-    @Value("${app.security.max-login-attempts:5}")
+    @Value("${app.security.max-login-attempts: 5}")
     private int maxLoginAttempts;
 
-    @Value("${app.security.account-lock-duration-minutes:30}")
+    @Value("${app. security.account-lock-duration-minutes:30}")
     private long accountLockDurationMinutes;
 
     @Value("${app.security.email-verification-token-expiry-hours:24}")
     private long emailVerificationTokenExpiryHours;
 
-    @Value("${app.security.password-reset-token-expiry-hours:1}")
-    private long passwordResetTokenExpiryHours;
-
     @Override
     @Transactional
     public AuthResponseDTO login(LoginRequestDTO request, HttpServletRequest httpRequest) {
 
-        String ipAddress = RequestUtils.getClientIp(httpRequest);
+        String ipAddress = RequestUtils. getClientIp(httpRequest);
         String userAgent = RequestUtils.getUserAgent(httpRequest);
 
         // Rate limiting
@@ -70,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Check if account is locked
         if (user.isLocked()) {
-            auditLogService.logFailedLogin(
+            auditLogService. logFailedLogin(
                     user.getUsername(),
                     "Account locked",
                     ipAddress,
@@ -89,7 +90,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Check if email is verified
-        if (!user.isEmailVerified()) {
+        if (!user. isEmailVerified()) {
             auditLogService.logFailedLogin(
                     user.getUsername(),
                     "Email not verified",
@@ -97,20 +98,68 @@ public class AuthServiceImpl implements AuthService {
                     userAgent
             );
             throw new EmailNotVerifiedException(
-                    "Please verify your email before logging in. Check your inbox for verification link."
+                    "Please verify your email before logging in.  Check your inbox for verification link."
             );
         }
 
-        // Check 2FA if enabled
-        if (user.isTwoFactorEnabled() &&
-                (request.getTwoFactorCode() == null || request.getTwoFactorCode().isEmpty())) {
+        // ==================== NEW:  CHECK TECHNICIAN APPROVAL ====================
+        if (user.getRoles().contains(UserRole.ROLE_TECHNICIAN)) {
+            Optional<TechnicianProfile> profileOpt = technicianProfileRepository.findByUserId(user. getId());
 
-            String tempToken = jwtUtils.generateTempToken(user.getUsername());
-            throw new TwoFactorRequiredException(
-                    "Two-factor authentication required",
-                    tempToken
-            );
+            if (profileOpt.isEmpty()) {
+                auditLogService.logFailedLogin(
+                        user.getUsername(),
+                        "Technician profile not found",
+                        ipAddress,
+                        userAgent
+                );
+                throw new AuthException("Technician profile not found.  Please contact support.");
+            }
+
+            TechnicianProfile profile = profileOpt.get();
+
+            if (profile.getApprovalStatus() == TechnicianProfile. ApprovalStatus. PENDING) {
+                auditLogService.logFailedLogin(
+                        user.getUsername(),
+                        "Technician approval pending",
+                        ipAddress,
+                        userAgent
+                );
+                throw new AuthException(
+                        "Your technician account is pending approval. " +
+                                "You will receive an email once your account is approved by a service manager."
+                );
+            }
+
+            if (profile. getApprovalStatus() == TechnicianProfile.ApprovalStatus.REJECTED) {
+                auditLogService.logFailedLogin(
+                        user.getUsername(),
+                        "Technician application rejected",
+                        ipAddress,
+                        userAgent
+                );
+                String reason = profile.getRejectionReason() != null
+                        ? profile.getRejectionReason()
+                        : "No reason provided";
+                throw new AuthException(
+                        "Your technician application was rejected.  Reason: " + reason +
+                                ". Please contact support for more information."
+                );
+            }
+
+            if (profile.getApprovalStatus() == TechnicianProfile.ApprovalStatus.SUSPENDED) {
+                auditLogService.logFailedLogin(
+                        user.getUsername(),
+                        "Technician account suspended",
+                        ipAddress,
+                        userAgent
+                );
+                throw new AuthException(
+                        "Your technician account has been suspended.  Please contact support."
+                );
+            }
         }
+        // ==================== END NEW CHECK ===================
 
         // Reset failed attempts on successful login
         user.resetFailedAttempts();
@@ -119,7 +168,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Generate tokens
-        String accessToken = jwtUtils.generateAccessToken(user);
+        String accessToken = jwtUtils. generateAccessToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                 user.getId(),
                 ipAddress,
@@ -129,12 +178,12 @@ public class AuthServiceImpl implements AuthService {
         // Audit log
         auditLogService.logSuccessfulLogin(user.getId(), user.getUsername(), ipAddress, userAgent);
 
-        return buildAuthResponse(user, accessToken, refreshToken.getToken());
+        return buildAuthResponse(user, accessToken, refreshToken. getToken());
     }
 
     @Override
     @Transactional
-    public AuthResponseDTO registerCustomer(
+    public RegistrationResponseDTO registerCustomer(
             String username,
             String email,
             String password,
@@ -178,7 +227,7 @@ public class AuthServiceImpl implements AuthService {
         auditLogService.log(
                 user.getId(),
                 user.getUsername(),
-                AuditLog.AuditAction.REGISTER,
+                AuditLog.AuditAction. REGISTER,
                 "Customer registered",
                 null,
                 null,
@@ -186,20 +235,22 @@ public class AuthServiceImpl implements AuthService {
                 null
         );
 
-        // Generate tokens (they can use app but should verify email)
-        String accessToken = jwtUtils.generateAccessToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(
-                user.getId(),
-                null,
-                null
-        );
+        log.info("Customer registered:  {}", username);
 
-        return buildAuthResponse(user, accessToken, refreshToken.getToken());
+        // Return registration response WITHOUT tokens
+        return RegistrationResponseDTO. builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .message("Registration successful!  Please check your email to verify your account.")
+                .emailVerificationRequired(true)
+                .approvalRequired(false)
+                .build();
     }
 
     @Override
     @Transactional
-    public AuthResponseDTO registerTechnician(
+    public RegistrationResponseDTO registerTechnician(
             String username,
             String email,
             String password,
@@ -239,7 +290,7 @@ public class AuthServiceImpl implements AuthService {
         user = userRepository.save(user);
 
         // Create technician profile (pending approval)
-        technicianProfileService.createProfile(
+        technicianProfileService. createProfile(
                 user.getId(),
                 skills,
                 experienceYears,
@@ -250,35 +301,39 @@ public class AuthServiceImpl implements AuthService {
         );
 
         // Send verification email
-        emailService.sendVerificationEmail(email, username, verificationToken);
+        emailService. sendVerificationEmail(email, username, verificationToken);
 
         // Audit log
         auditLogService.log(
                 user.getId(),
                 user.getUsername(),
                 AuditLog.AuditAction.REGISTER,
-                "Technician registered - pending approval",
+                "Technician registered - pending email verification and approval",
                 null,
                 null,
                 true,
                 null
         );
 
-        // Generate tokens
-        String accessToken = jwtUtils.generateAccessToken(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(
-                user.getId(),
-                null,
-                null
-        );
+        log.info("Technician registered: {} - pending approval", username);
 
-        return buildAuthResponse(user, accessToken, refreshToken.getToken());
+        // Return registration response WITHOUT tokens
+        return RegistrationResponseDTO. builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .message("Registration successful! Please verify your email.  " +
+                        "After email verification, your account will be reviewed by a service manager.  " +
+                        "You will receive an email once your account is approved.")
+                .emailVerificationRequired(true)
+                .approvalRequired(true)
+                .build();
     }
 
     @Override
     @Transactional
     public void verifyEmail(String token) {
-        User user = userRepository.findByEmailVerificationToken(token)
+        User user = userRepository. findByEmailVerificationToken(token)
                 .orElseThrow(() -> new InvalidTokenException("Invalid verification token"));
 
         if (user.getEmailVerificationTokenExpiry().isBefore(Instant.now())) {
@@ -291,7 +346,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         auditLogService.log(
-                user.getId(),
+                user. getId(),
                 user.getUsername(),
                 AuditLog.AuditAction.EMAIL_VERIFIED,
                 "Email verified successfully",
@@ -326,102 +381,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void initiatePasswordReset(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with this email"));
-
-        String resetToken = UUID.randomUUID().toString();
-        user.setPasswordResetToken(resetToken);
-        user.setPasswordResetTokenExpiry(
-                Instant.now().plusSeconds(passwordResetTokenExpiryHours * 3600)
-        );
-        userRepository.save(user);
-
-        emailService.sendPasswordResetEmail(email, user.getUsername(), resetToken);
-
-        auditLogService.log(
-                user.getId(),
-                user.getUsername(),
-                AuditLog.AuditAction.PASSWORD_RESET_REQUESTED,
-                "Password reset initiated",
-                null,
-                null,
-                true,
-                null
-        );
-    }
-
-    @Override
-    @Transactional
-    public void resetPassword(String token, String newPassword) {
-        User user = userRepository.findByPasswordResetToken(token)
-                .orElseThrow(() -> new InvalidTokenException("Invalid password reset token"));
-
-        if (user.getPasswordResetTokenExpiry().isBefore(Instant.now())) {
-            throw new TokenExpiredException("Password reset token has expired");
-        }
-
-        user.setPassword(passwordEncoder.encode(newPassword));
-        user.setPasswordResetToken(null);
-        user.setPasswordResetTokenExpiry(null);
-        user.resetFailedAttempts(); // Reset any failed attempts
-        userRepository.save(user);
-
-        // Revoke all existing refresh tokens for security
-        refreshTokenService.revokeAllUserTokens(user.getId(), "Password reset");
-
-        auditLogService.log(
-                user.getId(),
-                user.getUsername(),
-                AuditLog.AuditAction.PASSWORD_RESET_COMPLETED,
-                "Password reset completed",
-                null,
-                null,
-                true,
-                null
-        );
-    }
-
-    @Override
-    @Transactional
-    public void changePassword(String userId, String currentPassword, String newPassword) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            throw new InvalidCredentialsException("Current password is incorrect");
-        }
-
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-
-        auditLogService.log(
-                user.getId(),
-                user.getUsername(),
-                AuditLog.AuditAction.PASSWORD_CHANGED,
-                "Password changed successfully",
-                null,
-                null,
-                true,
-                null
-        );
-    }
-
-    @Override
-    @Transactional
     public void logout(String refreshToken, HttpServletRequest httpRequest) {
         String ipAddress = RequestUtils.getClientIp(httpRequest);
         String userAgent = RequestUtils.getUserAgent(httpRequest);
 
-        RefreshToken token = refreshTokenService.findByToken(refreshToken);
+        RefreshToken token = refreshTokenService. findByToken(refreshToken);
 
-        User user = userRepository.findById(token.getUserId())
+        User user = userRepository. findById(token.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         refreshTokenService.revokeToken(refreshToken, "User logout");
 
         auditLogService.log(
-                user.getId(),
+                user. getId(),
                 user.getUsername(),
                 AuditLog.AuditAction.LOGOUT,
                 "User logged out",
@@ -442,12 +414,12 @@ public class AuthServiceImpl implements AuthService {
         if (user.getFailedLoginAttempts() >= maxLoginAttempts) {
             user.lockAccount(accountLockDurationMinutes);
             log.warn("Account locked for user: {} after {} failed attempts",
-                    user.getUsername(), maxLoginAttempts);
+                    user. getUsername(), maxLoginAttempts);
 
             auditLogService.log(
                     user.getId(),
                     user.getUsername(),
-                    AuditLog.AuditAction.ACCOUNT_LOCKED,
+                    AuditLog.AuditAction. ACCOUNT_LOCKED,
                     "Account locked after " + maxLoginAttempts + " failed login attempts",
                     ipAddress,
                     userAgent,
@@ -485,11 +457,10 @@ public class AuthServiceImpl implements AuthService {
                         .id(user.getId())
                         .username(user.getUsername())
                         .email(user.getEmail())
-                        .firstName(user.getFirstName())
-                        .lastName(user.getLastName())
+                        . firstName(user.getFirstName())
+                        .lastName(user. getLastName())
                         .roles(user.getRoles())
-                        .emailVerified(user.isEmailVerified())
-                        .twoFactorEnabled(user.isTwoFactorEnabled())
+                        . emailVerified(user. isEmailVerified())
                         .build())
                 .build();
     }

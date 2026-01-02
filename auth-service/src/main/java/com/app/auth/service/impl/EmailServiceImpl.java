@@ -50,32 +50,6 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Async
-    public void sendPasswordResetEmail(String email, String username, String token) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(email);
-            message.setSubject("Password Reset Request - Home Service Platform");
-            message.setText(String.format(
-                    "Hello %s,\n\n" +
-                            "We received a request to reset your password. Click the link below to proceed:\n\n" +
-                            "%s/reset-password?token=%s\n\n" +
-                            "This link will expire in 1 hour.\n\n" +
-                            "If you didn't request this, please ignore this email and your password will remain unchanged.\n\n" +
-                            "Best regards,\n" +
-                            "Home Service Platform Team",
-                    username, baseUrl, token
-            ));
-
-            mailSender.send(message);
-            log.info("Password reset email sent to: {}", email);
-        } catch (Exception e) {
-            log.error("Failed to send password reset email to: {}", email, e);
-        }
-    }
-
-    @Override
-    @Async
     public void sendWelcomeEmail(String email, String username) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();

@@ -14,20 +14,12 @@ public interface RefreshTokenRepository extends MongoRepository<RefreshToken, St
 
     List<RefreshToken> findByUserId(String userId);
 
-    void deleteByUserId(String userId);
-
-    void deleteByToken(String token);
-
     // Find all tokens in a token family
     List<RefreshToken> findByTokenFamily(String tokenFamily);
 
     // Find expired tokens for cleanup
     @Query("{'expiryDate': {$lte: ?0}}")
     List<RefreshToken> findExpiredTokens(Instant now);
-
-    // Find revoked tokens
-    @Query("{'revoked': true}")
-    List<RefreshToken> findRevokedTokens();
 
     // Count active tokens for a user
     @Query(value = "{'userId': ?0, 'revoked': false, 'expiryDate': {$gt: ?1}}", count = true)

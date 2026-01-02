@@ -16,21 +16,7 @@ public class TechnicianController {
 
     private final TechnicianProfileService technicianProfileService;
 
-    @GetMapping("/profile")
-    @PreAuthorize("hasRole('TECHNICIAN')")
-    public ResponseEntity<ApiResponse<TechnicianProfileResponseDTO>> getMyProfile(
-            Authentication authentication
-    ) {
-        String username = authentication.getName();
-        TechnicianProfileResponseDTO profile =
-                technicianProfileService.getProfileByUsername(username);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Profile retrieved", profile)
-        );
-    }
-
-    @PatchMapping("/profile/availability")
+    @PatchMapping("/availability")
     @PreAuthorize("hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<Void>> updateAvailability(
             @RequestParam boolean available,

@@ -80,7 +80,7 @@ public class UserController {
     /**
      * Delete/Deactivate user (Admin only)
      */
-    @DeleteMapping("/{userId}")
+    @DeleteMapping("deactivate/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteUser(
             @PathVariable String userId

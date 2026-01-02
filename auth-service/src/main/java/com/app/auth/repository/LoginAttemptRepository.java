@@ -25,6 +25,4 @@ public interface LoginAttemptRepository extends MongoRepository<LoginAttempt, St
     @Query("{'ipAddress': ?0, 'timestamp': {$gte: ?1}}")
     List<LoginAttempt> findRecentAttemptsByIp(String ipAddress, Instant since);
 
-    // Cleanup old attempts (happens automatically via TTL index)
-    void deleteByTimestampBefore(Instant cutoffDate);
 }

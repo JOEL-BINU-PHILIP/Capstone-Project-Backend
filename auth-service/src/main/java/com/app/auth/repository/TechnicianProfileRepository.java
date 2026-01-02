@@ -34,10 +34,6 @@ public interface TechnicianProfileRepository extends MongoRepository<TechnicianP
     @Query("{'city': ?0, 'skills': {$in: ?1}, 'approvalStatus': 'APPROVED', 'available': true}")
     List<TechnicianProfile> findByCityAndSkills(String city, List<String> skills);
 
-    // Find top rated technicians
-    @Query(value = "{'approvalStatus': 'APPROVED'}", sort = "{'averageRating': -1}")
-    List<TechnicianProfile> findTopRatedTechnicians(Pageable pageable);
-
     // Count by status
     long countByApprovalStatus(TechnicianProfile.ApprovalStatus status);
 

@@ -20,21 +20,6 @@ public interface AuditLogRepository extends MongoRepository<AuditLog, String> {
     // Find logs by IP address
     List<AuditLog> findByIpAddress(String ipAddress);
 
-    // Find failed login attempts
-    @Query("{'action': 'LOGIN_FAILED', 'timestamp': {$gte: ?0}}")
-    List<AuditLog> findFailedLoginsAfter(Instant after);
-
-    // Find logs in date range
-    @Query("{'timestamp': {$gte: ?0, $lte: ?1}}")
-    Page<AuditLog> findByTimestampBetween(Instant start, Instant end, Pageable pageable);
-
-    // Find suspicious activity (multiple failed logins)
-    @Query("{'userId': ?0, 'action': 'LOGIN_FAILED', 'timestamp': {$gte: ?1}}")
-    List<AuditLog> findFailedLoginsByUserSince(String userId, Instant since);
-
-    // Count by action and success
-    long countByActionAndSuccess(AuditLog.AuditAction action, boolean success);
-
     // Delete old logs (for cleanup)
     void deleteByTimestampBefore(Instant cutoffDate);
 }

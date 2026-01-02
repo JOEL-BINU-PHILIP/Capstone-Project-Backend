@@ -54,10 +54,6 @@ public class User {
     private String emailVerificationToken;
     private Instant emailVerificationTokenExpiry;
 
-    // Password reset
-    private String passwordResetToken;
-    private Instant passwordResetTokenExpiry;
-
     // Security
     @Builder.Default
     private int failedLoginAttempts = 0;
@@ -65,12 +61,6 @@ public class User {
     private Instant lockedUntil;
     private String lastLoginIp;
     private Instant lastLoginAt;
-
-    // 2FA
-    @Builder.Default
-    private boolean twoFactorEnabled = false;
-
-    private String twoFactorSecret;
 
     // Profile fields
     private String firstName;

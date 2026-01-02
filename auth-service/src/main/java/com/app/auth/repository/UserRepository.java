@@ -23,8 +23,6 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     Optional<User> findByEmailVerificationToken(String token);
 
-    Optional<User> findByPasswordResetToken(String token);
-
     // Find users by role
     @Query("{'roles': ?0}")
     List<User> findByRole(UserRole role);

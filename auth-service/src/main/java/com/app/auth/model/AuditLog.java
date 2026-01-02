@@ -46,15 +46,9 @@ public class AuditLog {
         LOGOUT,
         REGISTER,
         EMAIL_VERIFIED,
-        PASSWORD_CHANGED,
-        PASSWORD_RESET_REQUESTED,
-        PASSWORD_RESET_COMPLETED,
         ACCOUNT_LOCKED,
         ACCOUNT_UNLOCKED,
         TOKEN_REFRESHED,
-        TOKEN_REVOKED,
-        TWO_FACTOR_ENABLED,
-        TWO_FACTOR_DISABLED,
         ROLE_CHANGED,
         PROFILE_UPDATED
     }

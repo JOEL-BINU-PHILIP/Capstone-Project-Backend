@@ -174,4 +174,15 @@ public class TechnicianProfileServiceImpl implements TechnicianProfileService {
                 .createdAt(profile.getCreatedAt())
                 .build();
     }
+
+    @Override
+    public TechnicianProfileResponseDTO getProfileById(String technicianId) {
+        TechnicianProfile profile = technicianProfileRepository.findById(technicianId)
+                .orElseThrow(() -> new ResourceNotFoundException("Technician profile not found"));
+
+        User user = userRepository.findById(profile.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return mapToDTO(profile, user);
+    }
 }

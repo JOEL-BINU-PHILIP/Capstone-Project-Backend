@@ -140,7 +140,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                         .lastName(user.getLastName())
                         .roles(user.getRoles())
                         .emailVerified(user.isEmailVerified())
-                        .twoFactorEnabled(user.isTwoFactorEnabled())
                         .build())
                 .build();
     }

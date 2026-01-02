@@ -98,30 +98,6 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(false, ex.getMessage(), null));
     }
 
-    @ExceptionHandler(TwoFactorRequiredException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleTwoFactorRequired(
-            TwoFactorRequiredException ex
-    ) {
-        Map<String, String> data = new HashMap<>();
-        data.put("tempToken", ex.getTempToken());
-        data.put("message", "2FA verification required");
-
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(new ApiResponse<>(false, ex.getMessage(), data));
-    }
-
-    @ExceptionHandler(InvalidTwoFactorCodeException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidTwoFactorCode(
-            InvalidTwoFactorCodeException ex
-    ) {
-        log.warn("Invalid 2FA code");
-
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(new ApiResponse<>(false, ex.getMessage(), null));
-    }
-
     // ===============================
     // Token errors
     // ===============================
