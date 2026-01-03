@@ -1,15 +1,15 @@
-package com.app.service_catalog. controller;
+package com.app. service_catalog.controller;
 
-import com.app. service_catalog.dto.request. CreateServiceRequest;
+import com.app.service_catalog. dto.request.CreateServiceRequest;
 import com.app.service_catalog.dto.request.UpdateServiceRequest;
-import com.app.service_catalog.dto.response.ServiceItemResponse;
+import com.app. service_catalog.dto.response.ServiceItemResponse;
 import com.app. service_catalog.service.ServiceItemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j. Slf4j;
-import org. springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework. security.access.prepost.PreAuthorize;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework. http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,10 +28,13 @@ public class ServiceController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ServiceItemResponse> create(@Valid @RequestBody CreateServiceRequest request) {
+    public ResponseEntity<String> create(@Valid @RequestBody CreateServiceRequest request) {
         log.info("Creating service: {}", request.getName());
+
+        ServiceItemResponse createdService = serviceItemService.createService(request);
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(serviceItemService.createService(request));
+                .body(createdService.getId());
     }
 
     @PutMapping("/{serviceId}")
@@ -48,8 +51,8 @@ public class ServiceController {
     public ResponseEntity<ServiceItemResponse> updateStatus(
             @PathVariable("serviceId") String serviceId,
             @RequestParam("active") boolean active) {
-        log.info("Updating service {} status to: {}", serviceId, active);
-        return ResponseEntity. ok(serviceItemService.updateServiceStatus(serviceId, active));
+        log.info("Updating service {} status to:  {}", serviceId, active);
+        return ResponseEntity.ok(serviceItemService.updateServiceStatus(serviceId, active));
     }
 
     @DeleteMapping("/{serviceId}")
@@ -77,13 +80,13 @@ public class ServiceController {
             return ResponseEntity.ok(serviceItemService.getServices(categoryId, active));
         }
 
-        return ResponseEntity.ok(serviceItemService.getAllServices());
+        return ResponseEntity.ok(serviceItemService. getAllServices());
     }
 
     @GetMapping("/{serviceId}")
     public ResponseEntity<ServiceItemResponse> getById(@PathVariable("serviceId") String serviceId) {
         log.debug("Getting service: {}", serviceId);
-        return ResponseEntity. ok(serviceItemService.getServiceById(serviceId));
+        return ResponseEntity.ok(serviceItemService.getServiceById(serviceId));
     }
 
     @GetMapping("/search")

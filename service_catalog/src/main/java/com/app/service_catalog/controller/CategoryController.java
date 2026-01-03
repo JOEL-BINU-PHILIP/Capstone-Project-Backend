@@ -3,15 +3,15 @@ package com.app.service_catalog. controller;
 import com.app. service_catalog.dto.request. CreateCategoryRequest;
 import com. app.service_catalog.dto. request.ReorderCategoryRequest;
 import com.app.service_catalog.dto.request.UpdateCategoryRequest;
-import com.app.service_catalog.dto.request.UpdateCategoryStatusRequest;
-import com. app.service_catalog.model.ServiceCategory;
-import com. app.service_catalog.service. CategoryService;
+import com.app.service_catalog. dto.request.UpdateCategoryStatusRequest;
+import com.app.service_catalog.model.ServiceCategory;
+import com.app. service_catalog.service.CategoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j. Slf4j;
+import lombok. extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost. PreAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,7 +30,7 @@ public class CategoryController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ServiceCategory> create(@Valid @RequestBody CreateCategoryRequest request) {
+    public ResponseEntity<String> create(@Valid @RequestBody CreateCategoryRequest request) {
         log.info("Creating category: {}", request.getName());
 
         ServiceCategory category = ServiceCategory.builder()
@@ -40,8 +40,10 @@ public class CategoryController {
                 .displayOrder(request.getDisplayOrder())
                 .build();
 
+        ServiceCategory createdCategory = categoryService.createCategory(category);
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(categoryService.createCategory(category));
+                .body(createdCategory.getId());
     }
 
     @PutMapping("/{id}")
@@ -50,7 +52,7 @@ public class CategoryController {
             @PathVariable("id") String id,
             @RequestBody UpdateCategoryRequest request) {
         log.info("Updating category: {}", id);
-        return ResponseEntity.ok(categoryService.updateCategory(id, request));
+        return ResponseEntity.ok(categoryService. updateCategory(id, request));
     }
 
     @PutMapping("/{id}/status")
@@ -58,8 +60,8 @@ public class CategoryController {
     public ResponseEntity<ServiceCategory> updateStatus(
             @PathVariable("id") String id,
             @RequestBody UpdateCategoryStatusRequest request) {
-        log.info("Updating category {} status to: {}", id, request.isActive());
-        return ResponseEntity. ok(categoryService.updateCategoryStatus(id, request.isActive()));
+        log.info("Updating category {} status to:  {}", id, request.isActive());
+        return ResponseEntity. ok(categoryService.updateCategoryStatus(id, request. isActive()));
     }
 
     @PutMapping("/reorder")
@@ -75,7 +77,7 @@ public class CategoryController {
     public ResponseEntity<Void> delete(@PathVariable("id") String id) {
         log.info("Deleting category: {}", id);
         categoryService.deleteCategory(id);
-        return ResponseEntity. noContent().build();
+        return ResponseEntity.noContent().build();
     }
 
     // =====================
@@ -88,7 +90,7 @@ public class CategoryController {
         log.debug("Getting categories - active: {}", active);
 
         if (active != null) {
-            return ResponseEntity.ok(categoryService. getCategories(active));
+            return ResponseEntity.ok(categoryService.getCategories(active));
         }
 
         return ResponseEntity.ok(categoryService.getAllCategories());
