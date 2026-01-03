@@ -1,9 +1,9 @@
-package com.app. auth.service;
+package com.app.auth.service;
 
-import com.app. auth.dto.response.TechnicianProfileResponseDTO;
-import com. app.auth.model.TechnicianProfile;
-import org.springframework.data. domain.Page;
-import org.springframework. data.domain. Pageable;
+import com.app.auth.dto.response.TechnicianProfileResponseDTO;
+import com.app.auth.model.TechnicianProfile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Set;
 
@@ -31,6 +31,7 @@ public interface TechnicianProfileService {
 
     Page<TechnicianProfileResponseDTO> getTechniciansByStatus(
             TechnicianProfile.ApprovalStatus status,
+            Boolean available,
             Pageable pageable
     );
 

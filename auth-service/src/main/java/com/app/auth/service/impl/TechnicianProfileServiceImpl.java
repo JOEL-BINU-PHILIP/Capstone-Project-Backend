@@ -127,10 +127,18 @@ public class TechnicianProfileServiceImpl implements TechnicianProfileService {
     @Override
     public Page<TechnicianProfileResponseDTO> getTechniciansByStatus(
             TechnicianProfile.ApprovalStatus status,
+            Boolean available,
             Pageable pageable
     ) {
-        Page<TechnicianProfile> profiles =
-                technicianProfileRepository.findByApprovalStatus(status, pageable);
+        Page<TechnicianProfile> profiles;
+
+        // Check if 'available' filter is applied
+        if (available != null) {
+            profiles = technicianProfileRepository.findByApprovalStatusAndAvailable(status, available, pageable);
+        } else {
+            // Fallback to original behavior (ignore availability)
+            profiles = technicianProfileRepository.findByApprovalStatus(status, pageable);
+        }
 
         return profiles.map(profile -> {
             User user = userRepository.findById(profile.getUserId()).orElse(null);

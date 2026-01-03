@@ -13,11 +13,16 @@ public interface TechnicianProfileRepository extends MongoRepository<TechnicianP
 
     Optional<TechnicianProfile> findByUserId(String userId);
 
-    // Find by approval status
+    // Existing method (returns List)
     List<TechnicianProfile> findByApprovalStatus(TechnicianProfile.ApprovalStatus status);
 
-    Page<TechnicianProfile> findByApprovalStatus(
+    // Overloaded method for Pagination (returns Page)
+    Page<TechnicianProfile> findByApprovalStatus(TechnicianProfile.ApprovalStatus status, Pageable pageable);
+
+    // New method for Status + Availability + Pagination
+    Page<TechnicianProfile> findByApprovalStatusAndAvailable(
             TechnicianProfile.ApprovalStatus status,
+            boolean available,
             Pageable pageable
     );
 
@@ -40,4 +45,3 @@ public interface TechnicianProfileRepository extends MongoRepository<TechnicianP
     // Check if user has profile
     boolean existsByUserId(String userId);
 }
-

@@ -1,4 +1,5 @@
 package com.app.auth.service.impl;
+
 import com.app.auth.dto.response.AuthResponseDTO;
 import com.app.auth.exception.InvalidTokenException;
 import com.app.auth.exception.TokenExpiredException;
@@ -12,7 +13,6 @@ import com.app.auth.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -81,7 +81,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         // Check if revoked
         if (refreshToken.isRevoked()) {
-            // Possible token theft - revoke entire token family
             log.warn("Attempted reuse of revoked token. Revoking token family: {}",
                     refreshToken.getTokenFamily());
             revokeTokenFamily(refreshToken.getTokenFamily(), "Token reuse detected");
@@ -94,6 +93,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             throw new TokenExpiredException("Refresh token has expired");
         }
 
+        // Fetch the full user details from the repository
         User user = userRepository.findById(refreshToken.getUserId())
                 .orElseThrow(() -> new InvalidTokenException("User not found"));
 
@@ -113,11 +113,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .userAgent(userAgent)
                 .revoked(false)
                 .build();
-
         newRefreshToken = refreshTokenRepository.save(newRefreshToken);
 
-        // Generate new access token
-        String newAccessToken = jwtUtils.generateAccessToken(user.getUsername(), user.getRoles());
+        // -------------------------------------------------------------------------
+        // FIX APPLIED: Use the method that accepts the User object.
+        // This ensures userId, email, and fullName are included in the claims.
+        // -------------------------------------------------------------------------
+        String newAccessToken = jwtUtils.generateAccessToken(user);
 
         // Audit log
         auditLogService.logTokenRefresh(
