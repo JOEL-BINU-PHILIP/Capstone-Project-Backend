@@ -1,18 +1,19 @@
-package com.app. billing.controller;
+package com.app.billing. controller;
 
-import com.app. billing.dto.request.PayInvoiceRequest;
+import com.app.billing. dto.request.PayInvoiceRequest;
 import com.app. billing.dto.response.ApiResponse;
 import com.app.billing. dto.response.InvoiceResponse;
 import com.app. billing.dto.response.RevenueReportResponse;
 import com.app.billing.model.InvoiceStatus;
-import com.app. billing.service.InvoiceService;
+import com. app.billing.security.JwtUtil;
+import com.app.billing.service. InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain. Pageable;
-import org.springframework. data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data. domain.Sort;
+import org.springframework. data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,31 +31,20 @@ import java. util.List;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
-
-    // ============================================================
-    // NOTE: POST /api/billing/invoices (manual creation) REMOVED
-    // Invoices are now auto-generated when bookings are completed
-    // ============================================================
+    private final JwtUtil jwtUtil;
 
     // ==================== READ ====================
 
-    /**
-     * Get invoice by ID
-     */
     @GetMapping("/{invoiceId}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceById(
             @PathVariable String invoiceId,
             Authentication authentication
     ) {
-        // Optional: Add ownership check for customers
-        InvoiceResponse response = invoiceService. getInvoiceById(invoiceId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        InvoiceResponse response = invoiceService.getInvoiceById(invoiceId);
+        return ResponseEntity. ok(ApiResponse. success(response));
     }
 
-    /**
-     * Get invoice by invoice number
-     */
     @GetMapping("/number/{invoiceNumber}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceByNumber(
@@ -64,9 +54,6 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    /**
-     * Get invoice by booking ID
-     */
     @GetMapping("/booking/{bookingId}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceByBookingId(
@@ -78,16 +65,6 @@ public class InvoiceController {
 
     // ==================== LIST ====================
 
-    /**
-     * Get invoices with optional filters
-     *
-     * Usage examples:
-     * - GET /api/billing/invoices                              -> All invoices (Manager/Admin)
-     * - GET /api/billing/invoices?user=me                      -> My invoices (Customer)
-     * - GET /api/billing/invoices?customerId={id}              -> By customer (Manager/Admin)
-     * - GET /api/billing/invoices? status=PENDING               -> By status (Manager/Admin)
-     * - GET /api/billing/invoices?customerId={id}&status=PAID  -> Combined filters
-     */
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getInvoices(
@@ -95,42 +72,52 @@ public class InvoiceController {
             @RequestParam(required = false) String customerId,
             @RequestParam(required = false) InvoiceStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestHeader("Authorization") String authHeader,
             Authentication authentication
     ) {
-        String currentUser = authentication.getName();
+        // Extract userId from JWT token
+        String token = authHeader.substring(7);
+        String currentUserId = jwtUtil.extractUserId(token);
+        String currentUsername = authentication.getName();
         boolean isManager = isManagerOrAdmin(authentication);
+
+        log.debug("Get invoices - user param: {}, currentUserId: {}, currentUsername: {}, isManager: {}",
+                user, currentUserId, currentUsername, isManager);
 
         String effectiveCustomerId = null;
 
         if ("me".equalsIgnoreCase(user)) {
-            effectiveCustomerId = currentUser;
+            // Use the userId from JWT, not the username
+            effectiveCustomerId = currentUserId;
+            log.debug("User requested 'me' - using userId:  {}", effectiveCustomerId);
         } else if (customerId != null) {
             if (! isManager) {
-                log.warn("Customer {} attempted to view invoices for customer {}", currentUser, customerId);
-                effectiveCustomerId = currentUser;
+                log.warn("Customer {} attempted to view invoices for customer {}", currentUserId, customerId);
+                effectiveCustomerId = currentUserId;
             } else {
                 effectiveCustomerId = customerId;
             }
         } else if (! isManager) {
-            effectiveCustomerId = currentUser;
+            effectiveCustomerId = currentUserId;
         }
+
+        log.debug("Querying invoices with effectiveCustomerId:  {}, status: {}", effectiveCustomerId, status);
 
         Page<InvoiceResponse> response = invoiceService. getInvoices(
                 effectiveCustomerId,
                 status,
-                currentUser,
+                currentUserId,
                 isManager,
                 pageable
         );
 
-        return ResponseEntity. ok(ApiResponse. success(response));
+        log.debug("Found {} invoices", response.getTotalElements());
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     // ==================== PAY ====================
 
-    /**
-     * Pay an invoice
-     */
     @PostMapping("/{invoiceId}/pay")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> payInvoice(
@@ -138,16 +125,13 @@ public class InvoiceController {
             @Valid @RequestBody PayInvoiceRequest request,
             Authentication authentication
     ) {
-        String paidBy = authentication. getName();
+        String paidBy = authentication.getName();
         InvoiceResponse response = invoiceService.payInvoice(invoiceId, request, paidBy);
         return ResponseEntity. ok(ApiResponse. success("Payment successful!", response));
     }
 
     // ==================== CANCEL ====================
 
-    /**
-     * Cancel an invoice
-     */
     @PostMapping("/{invoiceId}/cancel")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> cancelInvoice(
@@ -160,14 +144,11 @@ public class InvoiceController {
 
     // ==================== REPORTS ====================
 
-    /**
-     * Get revenue report for a date range
-     */
     @GetMapping("/reports/revenue")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<RevenueReportResponse>> getRevenueReport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat. ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO. DATE) LocalDate endDate
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat. ISO.DATE) LocalDate endDate
     ) {
         RevenueReportResponse response = invoiceService.getRevenueReport(startDate, endDate);
         return ResponseEntity. ok(ApiResponse. success(response));
@@ -175,9 +156,6 @@ public class InvoiceController {
 
     // ==================== SEARCH ====================
 
-    /**
-     * Search invoices
-     */
     @GetMapping("/search")
     @PreAuthorize("hasAnyRole('SERVICE_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<InvoiceResponse>>> searchInvoices(

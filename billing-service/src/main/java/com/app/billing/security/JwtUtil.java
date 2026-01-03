@@ -1,10 +1,10 @@
-package com.app.billing.security;
+package com. app.billing.security;
 
-import io.jsonwebtoken. Claims;
-import io.jsonwebtoken. Jwts;
+import io. jsonwebtoken.Claims;
+import io. jsonwebtoken. Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype. Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
@@ -16,11 +16,11 @@ public class JwtUtil {
     private final Key key;
 
     public JwtUtil(@Value("${jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.key = Keys. hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
+        return Jwts. parserBuilder()
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
@@ -29,6 +29,24 @@ public class JwtUtil {
 
     public String extractUsername(String token) {
         return extractAllClaims(token).getSubject();
+    }
+
+    /**
+     * Extract user ID from JWT token
+     */
+    public String extractUserId(String token) {
+        Claims claims = extractAllClaims(token);
+        Object userId = claims.get("userId");
+        if (userId != null) {
+            return userId.toString();
+        }
+        // Fallback to "id" claim
+        Object id = claims.get("id");
+        if (id != null) {
+            return id.toString();
+        }
+        // Last resort: return subject (username) - but this will cause issues
+        return claims.getSubject();
     }
 
     @SuppressWarnings("unchecked")

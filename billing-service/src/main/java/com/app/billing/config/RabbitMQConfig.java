@@ -20,7 +20,6 @@ public class RabbitMQConfig {
     public static final String DLQ_EXCHANGE = "billing.dlq.exchange";
     public static final String DLQ_QUEUE = "billing.dlq.queue";
 
-    // ... (Exchange beans remain the same) ...
     @Bean
     public TopicExchange billingExchange() {
         return new TopicExchange(BILLING_EXCHANGE);
