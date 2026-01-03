@@ -89,7 +89,7 @@ public class BookingServiceImpl implements BookingService {
                 saved.getBookingNumber(), customerId, serviceDetails.getServiceName());
 
         // Publish BOOKING_CREATED event
-        publishEvent(saved, EventType.BOOKING_CREATED, null, null);
+        publishEventForCustomer(saved, EventType.BOOKING_CREATED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -123,7 +123,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} rescheduled by customer {}", bookingId, customerId);
 
         // Publish BOOKING_RESCHEDULED event
-        publishEvent(saved, EventType.BOOKING_RESCHEDULED, null, null);
+        publishEventForCustomer(saved, EventType.BOOKING_RESCHEDULED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -149,7 +149,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} cancelled by customer {}", bookingId, customerId);
 
         // Publish BOOKING_CANCELLED event
-        publishEvent(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
+        publishEventForCustomer(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
 
         return BookingMapper. toResponse(saved);
     }
@@ -249,7 +249,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} confirmed by technician {}", bookingId, technicianId);
 
         // Publish BOOKING_CONFIRMED event
-        publishEvent(saved, EventType.BOOKING_CONFIRMED, null, null);
+        publishEventForCustomer(saved, EventType.BOOKING_CONFIRMED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -276,7 +276,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} rejected by technician {}", bookingId, technicianId);
 
         // Publish BOOKING_REJECTED event
-        publishEvent(saved, EventType.BOOKING_REJECTED, null, reason);
+        publishEventForCustomer(saved, EventType.BOOKING_REJECTED, null, reason);
 
         return BookingMapper. toResponse(saved);
     }
@@ -300,7 +300,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} started by technician {}", bookingId, technicianId);
 
         // Publish SERVICE_STARTED event
-        publishEvent(saved, EventType.SERVICE_STARTED, null, null);
+        publishEventForCustomer(saved, EventType.SERVICE_STARTED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -335,7 +335,7 @@ public class BookingServiceImpl implements BookingService {
         incrementTechnicianJobs(technicianId);
 
         // Publish SERVICE_COMPLETED event
-        publishEvent(saved, EventType.SERVICE_COMPLETED, null, null);
+        publishEventForCustomer(saved, EventType.SERVICE_COMPLETED, null, null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -369,12 +369,12 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse assignTechnician(String bookingId, AssignTechnicianRequest request, String managerId) {
         Booking booking = getBookingEntity(bookingId);
 
-        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus. REJECTED) {
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.REJECTED) {
             throw new InvalidStateException("Can only assign technician to pending or rejected bookings");
         }
 
         // Validate and fetch technician details from Auth Service
-        TechnicianDetails technicianDetails = fetchAndValidateTechnician(request.getTechnicianId());
+        TechnicianDetails technicianDetails = fetchAndValidateTechnician(request. getTechnicianId());
 
         booking.setTechnicianId(request.getTechnicianId());
         booking.setTechnicianName(technicianDetails.getFullName());
@@ -386,13 +386,17 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} assigned to technician {} ({}) by manager {}",
-                bookingId, technicianDetails. getFullName(), request.getTechnicianId(), managerId);
+                bookingId, technicianDetails.getFullName(), request.getTechnicianId(), managerId);
 
-        // Publish TECHNICIAN_ASSIGNED event
-        publishEvent(saved, EventType. TECHNICIAN_ASSIGNED, null, null);
+        // Publish TECHNICIAN_ASSIGNED event for CUSTOMER
+        publishEventForCustomer(saved, EventType.TECHNICIAN_ASSIGNED, null, null);
+
+        // ===== NEW: Publish TECHNICIAN_ASSIGNED event for TECHNICIAN =====
+        publishEventForTechnician(saved, technicianDetails, EventType. TECHNICIAN_ASSIGNED);
 
         return BookingMapper.toResponse(saved);
     }
+
 
     @Override
     @Transactional
@@ -400,12 +404,12 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = getBookingEntity(bookingId);
 
         List<BookingStatus> reassignableStatuses = Arrays.asList(
-                BookingStatus. ASSIGNED,
-                BookingStatus. CONFIRMED,
+                BookingStatus.ASSIGNED,
+                BookingStatus.CONFIRMED,
                 BookingStatus. REJECTED
         );
 
-        if (!reassignableStatuses.contains(booking.getStatus())) {
+        if (!reassignableStatuses.contains(booking. getStatus())) {
             throw new InvalidStateException("Cannot reassign technician at this stage");
         }
 
@@ -425,10 +429,13 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} reassigned to technician {} ({}) by manager {}",
                 bookingId, technicianDetails.getFullName(), request.getTechnicianId(), managerId);
 
-        // Publish TECHNICIAN_ASSIGNED event
-        publishEvent(saved, EventType.TECHNICIAN_ASSIGNED, null, null);
+        // Publish TECHNICIAN_ASSIGNED event for CUSTOMER
+        publishEventForCustomer(saved, EventType.TECHNICIAN_ASSIGNED, null, null);
 
-        return BookingMapper.toResponse(saved);
+        // ===== NEW:  Publish TECHNICIAN_ASSIGNED event for TECHNICIAN =====
+        publishEventForTechnician(saved, technicianDetails, EventType.TECHNICIAN_ASSIGNED);
+
+        return BookingMapper. toResponse(saved);
     }
 
     @Override
@@ -453,7 +460,7 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking {} cancelled by manager {}", bookingId, managerId);
 
         // Publish BOOKING_CANCELLED event
-        publishEvent(saved, EventType. BOOKING_CANCELLED, request. getReason(), null);
+        publishEventForCustomer(saved, EventType.BOOKING_CANCELLED, request.getReason(), null);
 
         return BookingMapper.toResponse(saved);
     }
@@ -787,10 +794,10 @@ public class BookingServiceImpl implements BookingService {
 
     // ==================== EVENT PUBLISHING ====================
 
-    private void publishEvent(Booking booking, EventType eventType,
-                              String cancellationReason, String rejectionReason) {
+    private void publishEventForCustomer(Booking booking, EventType eventType,
+                                         String cancellationReason, String rejectionReason) {
         try {
-            BookingEvent event = BookingEvent. builder()
+            BookingEvent event = BookingEvent.builder()
                     .eventType(eventType)
                     .userId(booking.getCustomerId())
                     .userEmail(booking.getCustomerEmail())
@@ -800,21 +807,57 @@ public class BookingServiceImpl implements BookingService {
                     .bookingNumber(booking.getBookingNumber())
                     .bookingStatus(booking.getStatus().name())
                     .serviceId(booking.getServiceId())
-                    .serviceName(booking.getServiceName())
+                    .serviceName(booking. getServiceName())
                     .categoryName(booking.getCategoryName())
                     .technicianId(booking.getTechnicianId())
-                    . technicianName(booking.getTechnicianName())
+                    .technicianName(booking.getTechnicianName())
                     .technicianPhone(booking.getTechnicianPhone())
                     .scheduledDate(booking.getScheduledDate() != null ?
                             booking.getScheduledDate().toString() : null)
-                    . cancellationReason(cancellationReason)
+                    .cancellationReason(cancellationReason)
                     .rejectionReason(rejectionReason)
                     .build();
 
             eventPublisherService.publishBookingEvent(event);
 
         } catch (Exception e) {
-            log.error("Failed to publish event {} for booking {}: {}",
+            log.error("Failed to publish customer event {} for booking {}:  {}",
+                    eventType, booking.getBookingNumber(), e.getMessage());
+        }
+    }
+
+    /**
+     * NEW: Publish event for technician
+     */
+    private void publishEventForTechnician(Booking booking, TechnicianDetails technicianDetails, EventType eventType) {
+        try {
+            BookingEvent event = BookingEvent.builder()
+                    .eventType(eventType)
+                    .userId(technicianDetails.getUserId())
+                    .userEmail(technicianDetails.getEmail())
+                    .userName(technicianDetails.getFullName())
+                    .userRole("TECHNICIAN")
+                    .bookingId(booking.getId())
+                    .bookingNumber(booking.getBookingNumber())
+                    .bookingStatus(booking.getStatus().name())
+                    .serviceId(booking.getServiceId())
+                    .serviceName(booking. getServiceName())
+                    .categoryName(booking.getCategoryName())
+                    .technicianId(technicianDetails.getUserId())
+                    .technicianName(technicianDetails.getFullName())
+                    .technicianPhone(technicianDetails. getPhoneNumber())
+                    .scheduledDate(booking.getScheduledDate() != null ?
+                            booking.getScheduledDate().toString() : null)
+                    .customerName(booking.getCustomerName())
+                    .customerPhone(booking.getCustomerPhone())
+                    .build();
+
+            eventPublisherService.publishBookingEvent(event);
+
+            log.info("Published TECHNICIAN notification event for booking:  {}", booking.getBookingNumber());
+
+        } catch (Exception e) {
+            log.error("Failed to publish technician event {} for booking {}: {}",
                     eventType, booking.getBookingNumber(), e.getMessage());
         }
     }

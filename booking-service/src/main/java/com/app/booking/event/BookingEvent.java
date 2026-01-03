@@ -53,4 +53,8 @@ public class BookingEvent implements Serializable {
     // Additional info
     private String cancellationReason;
     private String rejectionReason;
+
+    // ===== NEW: Customer details (for technician notifications) =====
+    private String customerName;
+    private String customerPhone;
 }
