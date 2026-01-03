@@ -1,30 +1,26 @@
-package com.app. billing.config;
+package com.app.billing.config;
 
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit. connection.ConnectionFactory;
-import org.springframework. amqp.rabbit.core.RabbitTemplate;
-import org. springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework. amqp.support. converter.MessageConverter;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier; // Import Qualifier
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation. Configuration;
+import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
 
-    // ========== BILLING SERVICE PUBLISHING ==========
+    // ... (Constants remain the same) ...
     public static final String BILLING_EXCHANGE = "billing.exchange";
-
-    // ========== BOOKING SERVICE LISTENING ==========
     public static final String BOOKING_EXCHANGE = "booking.exchange";
-    public static final String BOOKING_COMPLETED_QUEUE = "billing.booking.completed. queue";
-    public static final String BOOKING_COMPLETED_ROUTING_KEY = "booking.completed";
-
-    // ========== DEAD LETTER QUEUE (for failed messages) ==========
+    public static final String BOOKING_COMPLETED_QUEUE = "billing.booking.completed.queue";
+    public static final String BOOKING_COMPLETED_ROUTING_KEY = "booking.service_completed";
     public static final String DLQ_EXCHANGE = "billing.dlq.exchange";
-    public static final String DLQ_QUEUE = "billing. dlq.queue";
+    public static final String DLQ_QUEUE = "billing.dlq.queue";
 
-    // ==================== EXCHANGES ====================
-
+    // ... (Exchange beans remain the same) ...
     @Bean
     public TopicExchange billingExchange() {
         return new TopicExchange(BILLING_EXCHANGE);
@@ -42,10 +38,6 @@ public class RabbitMQConfig {
 
     // ==================== QUEUES ====================
 
-    /**
-     * Queue to receive booking completed events from Booking Service.
-     * This is what triggers auto-invoice generation.
-     */
     @Bean
     public Queue bookingCompletedQueue() {
         return QueueBuilder
@@ -55,21 +47,18 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    /**
-     * Dead letter queue for failed invoice generation attempts
-     */
     @Bean
     public Queue dlqQueue() {
-        return QueueBuilder. durable(DLQ_QUEUE).build();
+        return QueueBuilder.durable(DLQ_QUEUE).build();
     }
 
-    // ==================== BINDINGS ====================
+    // ==================== BINDINGS (FIX APPLIED HERE) ====================
 
-    /**
-     * Bind to booking. exchange to receive booking. completed events
-     */
     @Bean
-    public Binding bookingCompletedBinding(Queue bookingCompletedQueue, TopicExchange bookingExchange) {
+    public Binding bookingCompletedBinding(
+            @Qualifier("bookingCompletedQueue") Queue bookingCompletedQueue, // Add @Qualifier
+            @Qualifier("bookingExchange") TopicExchange bookingExchange      // Add @Qualifier (good practice)
+    ) {
         return BindingBuilder
                 .bind(bookingCompletedQueue)
                 .to(bookingExchange)
@@ -77,15 +66,17 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding dlqBinding(Queue dlqQueue, TopicExchange dlqExchange) {
+    public Binding dlqBinding(
+            @Qualifier("dlqQueue") Queue dlqQueue,           // Add @Qualifier
+            @Qualifier("dlqExchange") TopicExchange dlqExchange // Add @Qualifier
+    ) {
         return BindingBuilder
-                . bind(dlqQueue)
+                .bind(dlqQueue)
                 .to(dlqExchange)
                 .with("billing.failed");
     }
 
-    // ==================== MESSAGE CONVERTER ====================
-
+    // ... (MessageConverter and RabbitTemplate remain the same) ...
     @Bean
     public MessageConverter jsonMessageConverter() {
         return new Jackson2JsonMessageConverter();

@@ -23,9 +23,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time. Instant;
-import java.time. Year;
+import java.time.Instant;
+import java.time.Year;
 import java.util.*;
 import java.util.stream. Collectors;
 
@@ -179,8 +178,6 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
         log.info("Booking {} rated with {} stars by customer {}", bookingId, request.getRating(), customerId);
-
-        // TODO: Update technician average rating via Auth Service (optional enhancement)
 
         return BookingMapper.toResponse(saved);
     }

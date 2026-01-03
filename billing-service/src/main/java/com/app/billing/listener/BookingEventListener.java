@@ -1,11 +1,12 @@
 package com.app.billing.listener;
 
+import com.app.billing.config.RabbitMQConfig; // Import the config class
 import com.app.billing.exception.DuplicateInvoiceException;
-import com.app. billing.service.impl.InvoiceServiceImpl;
-import com.fasterxml.jackson. databind.ObjectMapper;
+import com.app.billing.service.impl.InvoiceServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok. extern.slf4j.Slf4j;
-import org. springframework.amqp.rabbit.annotation.RabbitListener;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -26,20 +27,23 @@ public class BookingEventListener {
      * Handles BOOKING_COMPLETED events from Booking Service.
      * Automatically creates an invoice when a booking is marked as completed.
      */
-    @RabbitListener(queues = "${rabbitmq.queue.booking-completed: billing. booking. completed. queue}")
+    // Fixed: Use constant directly to prevent mismatch
+    @RabbitListener(queues = RabbitMQConfig.BOOKING_COMPLETED_QUEUE)
     public void handleBookingCompleted(String message) {
-        log. info("Received booking completed event: {}", message);
+        log.info("Received booking completed event: {}", message);
 
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> event = objectMapper.readValue(message, Map.class);
 
-            String eventType = (String) event.get("eventType");
-
-            // Only process BOOKING_COMPLETED events
-            if (!"BOOKING_COMPLETED".equals(eventType)) {
-                log.debug("Ignoring event type: {}", eventType);
-                return;
+            // Defensive check for event type if it exists in the message
+            if (event.containsKey("eventType")) {
+                String eventType = (String) event.get("eventType");
+                // Check for both potential event type names just in case
+                if (!"BOOKING_COMPLETED".equals(eventType) && !"SERVICE_COMPLETED".equals(eventType)) {
+                    log.debug("Ignoring event type: {}", eventType);
+                    return;
+                }
             }
 
             String bookingId = (String) event.get("bookingId");
@@ -52,7 +56,7 @@ public class BookingEventListener {
             log.info("Auto-generating invoice for completed booking: {}", bookingId);
 
             // Use the existing method to create invoice from booking
-            invoiceService. createInvoiceFromBooking(bookingId, "SYSTEM_AUTO");
+            invoiceService.createInvoiceFromBooking(bookingId, "SYSTEM_AUTO");
 
             log.info("Successfully auto-generated invoice for booking: {}", bookingId);
 
@@ -61,9 +65,8 @@ public class BookingEventListener {
             log.warn("Invoice already exists for booking: {}", e.getMessage());
 
         } catch (Exception e) {
-            log.error("Failed to process booking completed event:  {}", e.getMessage(), e);
-            // In production, you might want to send this to a dead letter queue
-            // for manual review or retry
+            log.error("Failed to process booking completed event: {}", e.getMessage(), e);
+            // In production, you might want to throw the exception to trigger DLQ routing
         }
     }
 }
