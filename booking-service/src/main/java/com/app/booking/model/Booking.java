@@ -52,7 +52,7 @@ public class Booking {
 
     // Problem Description
     private String problemDescription;
-    private List<String> imageUrls;         // Images of the issue
+//    private List<String> imageUrls;         // Images of the issue
 
     // Scheduling
     private LocalDateTime scheduledDate;
@@ -84,7 +84,7 @@ public class Booking {
 
     // Technician Notes
     private String technicianNotes;
-    private List<String> completionImageUrls;   // Before/after images
+//    private List<String> completionImageUrls;   // Before/after images
 
     // Lifecycle Timestamps
     private Instant confirmedAt;
