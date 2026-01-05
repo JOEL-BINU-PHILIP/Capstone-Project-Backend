@@ -37,7 +37,6 @@ public class SecurityConfig {
                         // Public endpoints - Categories and Services (read-only GET requests)
                         . requestMatchers("GET", "/api/services/categories/**").permitAll()
                         .requestMatchers("GET", "/api/services/**").permitAll()
-
                         // Internal APIs for inter-service communication
                         .requestMatchers("/api/internal/**").permitAll()
 

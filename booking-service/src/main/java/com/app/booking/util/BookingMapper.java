@@ -27,7 +27,6 @@ public class BookingMapper {
                 .status(booking.getStatus())
                 .priority(booking.getPriority())
                 .problemDescription(booking.getProblemDescription())
-                .imageUrls(booking.getImageUrls())
                 .specialInstructions(booking.getSpecialInstructions())
                 .scheduledDate(booking.getScheduledDate())
                 .estimatedDurationMinutes(booking.getEstimatedDurationMinutes())

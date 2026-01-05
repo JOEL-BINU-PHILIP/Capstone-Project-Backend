@@ -69,7 +69,6 @@ public class BookingServiceImpl implements BookingService {
                 .status(BookingStatus.PENDING)
                 .priority(request.getPriority() != null ? request.getPriority() : Priority.NORMAL)
                 .problemDescription(request.getProblemDescription())
-                .imageUrls(request.getImageUrls())
                 .scheduledDate(request.getScheduledDate())
                 .serviceAddress(AddressDetails.builder()
                         .addressLine1(request.getAddressLine1())
@@ -325,7 +324,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setOtpVerified(true);
         booking.setCompletedAt(Instant.now());
         booking.setTechnicianNotes(request.getTechnicianNotes());
-        booking.setCompletionImageUrls(request.getCompletionImageUrls());
         booking.setUpdatedAt(Instant.now());
 
         Booking saved = bookingRepository.save(booking);
