@@ -36,7 +36,7 @@ public interface InvoiceRepository extends MongoRepository<Invoice, String> {
     Page<Invoice> findByCustomerIdAndStatus(String customerId, InvoiceStatus status, Pageable pageable);
 
     // Date range queries
-    @Query("{'createdAt': {$gte: ? 0, $lte: ?1}}")
+    @Query("{'createdAt': {'$gte': ?0, '$lte': ?1}}")
     List<Invoice> findByCreatedAtBetween(Instant start, Instant end);
 
     // Statistics
