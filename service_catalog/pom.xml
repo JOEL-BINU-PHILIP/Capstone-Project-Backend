@@ -14,7 +14,6 @@
     </parent>
 
     <artifactId>service-catalog</artifactId>
-    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>Service Catalog Service</name>
@@ -97,7 +96,8 @@
 
     <build>
         <plugins>
-            <!-- ONLY compiler plugin needed here -->
+
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -107,6 +107,20 @@
                     <parameters>true</parameters>
                 </configuration>
             </plugin>
+
+            <!-- 🔥 REQUIRED: Spring Boot FAT JAR -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 

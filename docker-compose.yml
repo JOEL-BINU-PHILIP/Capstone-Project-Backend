@@ -6,7 +6,8 @@ services:
   # CONFIG SERVER
   # ===========================
   capstone-config-server:
-    build: ./capstone-config-server
+    build:
+      context: C:/SpringBootProjects/capstone-config-repo
     container_name: capstone-config-server
     ports:
       - "8888:8888"
@@ -90,7 +91,7 @@ services:
   # SERVICE CATALOG
   # ===========================
   service-catalog:
-    build: ./service-catalog
+    build: ./service_catalog
     container_name: service-catalog
     ports:
       - "8082:8082"

@@ -19,7 +19,7 @@ public class EmailServiceImpl implements EmailService {
     @Value("${app.mail.from}")
     private String fromEmail;
 
-    @Value("${app.base-url}")
+    @Value("${app.public-base-url}")
     private String baseUrl;
 
     @Override
