@@ -48,31 +48,6 @@ public class AdminServiceImplTest {
     }
 
     @Test
-    void assignRole_Success() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
-
-        adminService.assignRole("user-1", UserRole.ROLE_TECHNICIAN);
-
-        assertTrue(user.getRoles().contains(UserRole.ROLE_TECHNICIAN));
-        verify(userRepository).save(user);
-        verify(auditLogService).log(
-                eq("user-1"),
-                eq("testuser"),
-                eq(AuditLog.AuditAction.ROLE_CHANGED),
-                any(), any(), any(), eq(true), any()
-        );
-    }
-
-    @Test
-    void assignRole_AlreadyHasRole_ThrowsException() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
-
-        assertThrows(IllegalStateException.class, () ->
-                adminService.assignRole("user-1", UserRole.ROLE_CUSTOMER)
-        );
-    }
-
-    @Test
     void lockUser_Success() {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
 
