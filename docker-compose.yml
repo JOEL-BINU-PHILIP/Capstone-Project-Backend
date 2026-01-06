@@ -1,0 +1,205 @@
+version: "3.9"
+
+services:
+
+  # ===========================
+  # CONFIG SERVER
+  # ===========================
+  capstone-config-server:
+    build: ./capstone-config-server
+    container_name: capstone-config-server
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8888/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # SERVICE REGISTRY (EUREKA)
+  # ===========================
+  service-registry:
+    build: ./service-registry
+    container_name: service-registry
+    ports:
+      - "8761:8761"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # MONGODB
+  # ===========================
+  mongo-db:
+    image: mongo:6
+    container_name: mongo-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    networks:
+      - capstone-network
+
+  # ===========================
+  # RABBITMQ
+  # ===========================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - capstone-network
+
+  # ===========================
+  # AUTH SERVICE
+  # ===========================
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      mongo-db:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # SERVICE CATALOG
+  # ===========================
+  service-catalog:
+    build: ./service-catalog
+    container_name: service-catalog
+    ports:
+      - "8082:8082"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      mongo-db:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # BOOKING SERVICE
+  # ===========================
+  booking-service:
+    build: ./booking-service
+    container_name: booking-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      mongo-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # BILLING SERVICE
+  # ===========================
+  billing-service:
+    build: ./billing-service
+    container_name: billing-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      mongo-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # NOTIFICATION SERVICE
+  # ===========================
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      mongo-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - capstone-network
+
+  # ===========================
+  # API GATEWAY
+  # ===========================
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      capstone-config-server:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      service-catalog:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      billing-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - capstone-network
+
+# ===========================
+# NETWORKS & VOLUMES
+# ===========================
+networks:
+  capstone-network:
+
+volumes:
+  mongo_data:
