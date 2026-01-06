@@ -22,33 +22,6 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional
-    public void assignRole(String userId, UserRole role) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        if (user.getRoles().contains(role)) {
-            throw new IllegalStateException("User already has this role");
-        }
-
-        user.getRoles().add(role);
-        userRepository.save(user);
-
-        auditLogService.log(
-                user.getId(),
-                user.getUsername(),
-                AuditLog.AuditAction.ROLE_CHANGED,
-                "Role assigned: " + role.name(),
-                null,
-                null,
-                true,
-                null
-        );
-
-        log.info("Role {} assigned to user: {}", role, user.getUsername());
-    }
-
-    @Override
-    @Transactional
     public void removeRole(String userId, UserRole role) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));

@@ -80,22 +80,6 @@ public class AdminController {
                 new ApiResponse<>(true, "Users retrieved successfully", users)
         );
     }
-
-    // ==================== ROLE MANAGEMENT ====================
-
-    @PostMapping("/users/{userId}/roles")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> assignRole(
-            @PathVariable("userId") String userId,
-            @RequestParam("role") UserRole role
-    ) {
-        adminService. assignRole(userId, role);
-
-        return ResponseEntity. ok(
-                new ApiResponse<>(true, "Role assigned successfully", null)
-        );
-    }
-
     @DeleteMapping("/users/{userId}/roles")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> removeRole(

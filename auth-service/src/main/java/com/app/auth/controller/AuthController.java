@@ -107,15 +107,15 @@ public class AuthController {
         );
     }
 
-    @PostMapping("/resend-verification")
-    public ResponseEntity<ApiResponse<Void>> resendVerification(
-            @RequestParam("email") String email
-    ) {
-        authService.resendVerificationEmail(email);
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Verification email sent", null)
-        );
-    }
+//    @PostMapping("/resend-verification")
+//    public ResponseEntity<ApiResponse<Void>> resendVerification(
+//            @RequestParam("email") String email
+//    ) {
+//        authService.resendVerificationEmail(email);
+//        return ResponseEntity.ok(
+//                new ApiResponse<>(true, "Verification email sent", null)
+//        );
+//    }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(

@@ -11,7 +11,6 @@ public interface AuthService {
 
     AuthResponseDTO login(LoginRequestDTO request, HttpServletRequest httpRequest);
 
-    // CHANGED: Return RegistrationResponseDTO instead of AuthResponseDTO
     RegistrationResponseDTO registerCustomer(
             String username,
             String email,
@@ -24,7 +23,6 @@ public interface AuthService {
             String zipCode
     );
 
-    // CHANGED: Return RegistrationResponseDTO instead of AuthResponseDTO
     RegistrationResponseDTO registerTechnician(
             String username,
             String email,
