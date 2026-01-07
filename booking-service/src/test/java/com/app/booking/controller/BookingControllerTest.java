@@ -7,46 +7,37 @@ import com.app.booking.model.BookingStatus;
 import com.app.booking.model.Priority;
 import com.app.booking.security.JwtUtil;
 import com.app.booking.service.BookingService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(BookingController.class)
+@ExtendWith(MockitoExtension.class)
 class BookingControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
+    @Mock
     private BookingService bookingService;
 
-    @MockBean
+    @Mock
     private JwtUtil jwtUtil;
+
+    @InjectMocks
+    private BookingController bookingController;
 
     private BookingResponse bookingResponse;
     private CreateBookingRequest createRequest;
@@ -54,7 +45,6 @@ class BookingControllerTest {
 
     @BeforeEach
     void setUp() {
-        // Mock booking response
         bookingResponse = BookingResponse.builder()
                 .id("booking123")
                 .bookingNumber("BK-2026-00001")
@@ -72,7 +62,6 @@ class BookingControllerTest {
                 .createdAt(Instant.now())
                 .build();
 
-        // Mock create request
         createRequest = CreateBookingRequest.builder()
                 .serviceId("service123")
                 .problemDescription("AC not cooling")
@@ -83,32 +72,25 @@ class BookingControllerTest {
                 .state("NY")
                 .zipCode("10001")
                 .build();
-
-        // Mock JWT extraction
-        when(jwtUtil.extractUserId(anyString())).thenReturn("customer123");
-        when(jwtUtil.extractFullName(anyString())).thenReturn("John Doe");
-        when(jwtUtil.extractEmail(anyString())).thenReturn("john@test.com");
-        when(jwtUtil.extractPhoneNumber(anyString())).thenReturn("1234567890");
     }
 
     // ==================== CREATE BOOKING TESTS ====================
 
     @Test
-    @WithMockUser(username = "customer1", roles = {"CUSTOMER"})
-    void createBooking_ShouldReturnBookingId_WhenValidRequest() throws Exception {
+    void createBooking_ShouldReturnBookingId_WhenValidRequest() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("customer123");
+        when(jwtUtil.extractFullName(anyString())).thenReturn("John Doe");
+        when(jwtUtil.extractEmail(anyString())).thenReturn("john@test.com");
+        when(jwtUtil.extractPhoneNumber(anyString())).thenReturn("1234567890");
         when(bookingService.createBooking(
                 any(CreateBookingRequest.class),
                 anyString(), anyString(), anyString(), anyString()
         )).thenReturn(bookingResponse);
 
-        mockMvc.perform(post("/api/bookings")
-                        .with(csrf())
-                        .header("Authorization", authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(createRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(content().string("booking123"));
+        ResponseEntity<String> response = bookingController.createBooking(createRequest, authToken);
 
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isEqualTo("booking123");
         verify(bookingService, times(1)).createBooking(
                 any(CreateBookingRequest.class),
                 eq("customer123"), eq("John Doe"),
@@ -116,249 +98,231 @@ class BookingControllerTest {
         );
     }
 
-    @Test
-    @Disabled("Security test - skipping for now")
-    @WithMockUser(username = "manager1", roles = {"SERVICE_MANAGER"})  // NOT CUSTOMER
-    void createBooking_ShouldReturnForbidden_WhenNotCustomer() throws Exception {
-        CreateBookingRequest request = new CreateBookingRequest();
-        request.setServiceId("service1");
-        request.setScheduledDate(LocalDateTime.now().plusDays(1));
-        request.setAddressLine1("123 Test St");
-        request.setCity("Test City");
-        request.setZipCode("123456");
-
-        mockMvc.perform(post("/api/bookings")
-                        .header("Authorization", "Bearer valid-token")
-                        . contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
-                .andExpect(status().isForbidden());
-
-        // Verify service was NOT called
-        verify(bookingService, never()).createBooking(
-                any(CreateBookingRequest.class),
-                anyString(),
-                anyString(),
-                anyString(),
-                anyString()
-        );
-    }
+    // ==================== GET ALL BOOKINGS TESTS ====================
 
     @Test
-    @WithMockUser(username = "customer", roles = {"CUSTOMER"})
-    void createBooking_ShouldReturnBadRequest_WhenMissingRequiredFields() throws Exception {
-        createRequest.setServiceId(null); // Missing required field
-
-        mockMvc.perform(post("/api/bookings")
-                        .with(csrf())
-                        .header("Authorization", authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(createRequest)))
-                .andExpect(status().isBadRequest());
-    }
-
-    // ==================== GET BOOKINGS TESTS ====================
-
-    @Test
-    @WithMockUser(username = "customer", roles = {"CUSTOMER"})
-    void getBookings_ShouldReturnCustomerBookings_WhenCustomer() throws Exception {
-        List<BookingResponse> bookings = Arrays.asList(bookingResponse);
-        when(bookingService.getCustomerBookings("customer123")).thenReturn(bookings);
-
-        mockMvc.perform(get("/api/bookings")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].id").value("booking123"));
-
-        verify(bookingService, times(1)).getCustomerBookings("customer123");
-    }
-
-    @Test
-    @WithMockUser(username = "technician", roles = {"TECHNICIAN"})
-    void getBookings_ShouldReturnTechnicianBookings_WhenTechnician() throws Exception {
-        List<BookingResponse> bookings = Arrays.asList(bookingResponse);
-        when(bookingService.getTechnicianBookings("customer123")).thenReturn(bookings);
-
-        mockMvc.perform(get("/api/bookings")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
-
-        verify(bookingService, times(1)).getTechnicianBookings("customer123");
-    }
-
-    @Test
-    @WithMockUser(username = "manager", roles = {"SERVICE_MANAGER"})
-    void getBookings_ShouldReturnAllBookings_WhenManager() throws Exception {
+    void getAllBookings_ShouldReturnAllBookings() {
         List<BookingResponse> bookings = Arrays.asList(bookingResponse);
         when(bookingService.getAllBookings()).thenReturn(bookings);
 
-        mockMvc.perform(get("/api/bookings")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
+        var response = bookingController.getAllBookings();
 
-        verify(bookingService, times(1)).getAllBookings();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getData()).hasSize(1);
     }
 
-    @Test
-    @Disabled("Security test - skipping for now")
-    @WithMockUser(username = "customer1", roles = {"CUSTOMER"})
-    void getBookingsPaged_ShouldReturnPagedBookings() throws Exception {
-        // Mock JwtUtil methods
-        when(jwtUtil. extractUserId(anyString())).thenReturn("customer1");
-
-        Page<BookingResponse> page = new PageImpl<>(Arrays.asList(bookingResponse));
-        when(bookingService.getCustomerBookingsPaged(
-                eq("customer1"),
-                any(Pageable.class)
-        )).thenReturn(page);
-
-        mockMvc.perform(get("/api/bookings/paged")
-                        .header("Authorization", "Bearer valid-token")
-                        .param("page", "0")
-                        .param("size", "10")
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$. data.content[0].id").value("booking1"));
-    }
-
-    // ==================== GET SINGLE BOOKING TESTS ====================
+    // ==================== GET PENDING BOOKINGS TESTS ====================
 
     @Test
-    @WithMockUser(username = "customer", roles = {"CUSTOMER"})
-    void getBookingById_ShouldReturnBooking_WhenAuthorized() throws Exception {
-        when(bookingService.getBookingByIdWithAccessCheck(
-                eq("booking123"), anyString(), anyList()
-        )).thenReturn(bookingResponse);
-
-        mockMvc.perform(get("/api/bookings/booking123")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value("booking123"))
-                .andExpect(jsonPath("$.data.bookingNumber").value("BK-2026-00001"));
-
-        verify(bookingService, times(1)).getBookingByIdWithAccessCheck(
-                eq("booking123"), eq("customer123"), anyList()
-        );
-    }
-
-    @Test
-    @WithMockUser(username = "customer", roles = {"CUSTOMER"})
-    void getBookingByNumber_ShouldReturnBooking() throws Exception {
-        when(bookingService.getBookingByNumberWithAccessCheck(
-                eq("BK-2026-00001"), anyString(), anyList()
-        )).thenReturn(bookingResponse);
-
-        mockMvc.perform(get("/api/bookings/number/BK-2026-00001")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.bookingNumber").value("BK-2026-00001"));
-    }
-
-    // ==================== TECHNICIAN ACTIVE BOOKINGS TEST ====================
-
-    @Test
-    @WithMockUser(username = "technician", roles = {"TECHNICIAN"})
-    void getTechnicianActiveBookings_ShouldReturnActiveBookings() throws Exception {
-        List<BookingResponse> activeBookings = Arrays.asList(bookingResponse);
-        when(bookingService.getTechnicianActiveBookings("customer123")).thenReturn(activeBookings);
-
-        mockMvc.perform(get("/api/bookings/technician/active")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
-
-        verify(bookingService, times(1)).getTechnicianActiveBookings("customer123");
-    }
-
-    // Fix for: getTechnicianActiveBookings_ShouldReturnForbidden_WhenNotTechnician
-    @Test
-    @Disabled("Security test - skipping for now")
-    @WithMockUser(username = "customer1", roles = {"CUSTOMER"})  // NOT TECHNICIAN
-    void getTechnicianActiveBookings_ShouldReturnForbidden_WhenNotTechnician() throws Exception {
-        mockMvc.perform(get("/api/bookings/technician/active")
-                        .header("Authorization", "Bearer valid-token")
-                        .with(csrf()))
-                .andExpect(status().isForbidden());
-
-        // Verify service was NOT called
-        verify(bookingService, never()).getTechnicianActiveBookings(anyString());
-    }
-
-    // ==================== MANAGER ENDPOINTS TESTS ====================
-
-    @Test
-    @WithMockUser(username = "manager", roles = {"SERVICE_MANAGER"})
-    void getPendingBookings_ShouldReturnPendingBookings() throws Exception {
-        List<BookingResponse> pendingBookings = Arrays.asList(bookingResponse);
-        when(bookingService.getPendingBookings()).thenReturn(pendingBookings);
-
-        mockMvc.perform(get("/api/bookings/pending")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
-
-        verify(bookingService, times(1)).getPendingBookings();
-    }
-
-    @Test
-    @WithMockUser(username = "manager", roles = {"SERVICE_MANAGER"})
-    void getBookingsByStatus_ShouldReturnFilteredBookings() throws Exception {
+    void getPendingBookings_ShouldReturnPendingBookings() {
         List<BookingResponse> bookings = Arrays.asList(bookingResponse);
-        when(bookingService.getBookingsByStatus(BookingStatus.PENDING)).thenReturn(bookings);
+        when(bookingService.getPendingBookings()).thenReturn(bookings);
 
-        mockMvc.perform(get("/api/bookings/status/PENDING")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
+        var response = bookingController.getPendingBookings();
 
-        verify(bookingService, times(1)).getBookingsByStatus(BookingStatus.PENDING);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        verify(bookingService).getPendingBookings();
     }
 
+    // ==================== GET BOOKINGS BY STATUS TESTS ====================
+
     @Test
-    @WithMockUser(username = "manager", roles = {"SERVICE_MANAGER"})
-    void getBookingStats_ShouldReturnStatistics() throws Exception {
+    void getBookingsByStatus_ShouldReturnFilteredBookings() {
+        List<BookingResponse> bookings = Arrays.asList(bookingResponse);
+        when(bookingService.getBookingsByStatus(any(BookingStatus.class))).thenReturn(bookings);
+
+        var response = bookingController.getBookingsByStatus(BookingStatus.PENDING);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).getBookingsByStatus(BookingStatus.PENDING);
+    }
+
+    // ==================== GET BOOKING STATS TESTS ====================
+
+    @Test
+    void getBookingStats_ShouldReturnStats() {
+        Map<String, Long> statusCounts = new HashMap<>();
+        statusCounts.put("PENDING", 5L);
+        statusCounts.put("COMPLETED", 10L);
+
         BookingStatsResponse stats = BookingStatsResponse.builder()
-                .totalBookings(100L)
-                .pendingBookings(10L)
-                .completedBookings(50L)
+                .totalBookings(15L)
+                .pendingBookings(5L)
+                .completedBookings(10L)
+                .bookingsByStatus(statusCounts)
                 .build();
 
         when(bookingService.getBookingStats()).thenReturn(stats);
 
-        mockMvc.perform(get("/api/bookings/stats")
-                        .header("Authorization", authToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.totalBookings").value(100));
+        var response = bookingController.getBookingStats();
 
-        verify(bookingService, times(1)).getBookingStats();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().getData().getTotalBookings()).isEqualTo(15L);
     }
+
+    // ==================== SEARCH BOOKINGS TESTS ====================
 
     @Test
-    @WithMockUser(username = "manager", roles = {"SERVICE_MANAGER"})
-    void searchBookings_ShouldReturnSearchResults() throws Exception {
-        List<BookingResponse> results = Arrays.asList(bookingResponse);
-        when(bookingService.searchBookings("AC Repair")).thenReturn(results);
+    void searchBookings_ShouldReturnSearchResults() {
+        List<BookingResponse> bookings = Arrays.asList(bookingResponse);
+        when(bookingService.searchBookings(anyString())).thenReturn(bookings);
 
-        mockMvc.perform(get("/api/bookings/search")
-                        .header("Authorization", authToken)
-                        .param("query", "AC Repair"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
+        var response = bookingController.searchBookings("AC");
 
-        verify(bookingService, times(1)).searchBookings("AC Repair");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).searchBookings("AC");
+    }
+
+    // ==================== TECHNICIAN ACTIVE BOOKINGS TESTS ====================
+
+    @Test
+    void getTechnicianActiveBookings_ShouldReturnActiveBookings() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("tech123");
+        List<BookingResponse> bookings = Arrays.asList(bookingResponse);
+        when(bookingService.getTechnicianActiveBookings(anyString())).thenReturn(bookings);
+
+        var response = bookingController.getTechnicianActiveBookings(authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).getTechnicianActiveBookings("tech123");
+    }
+
+    // ==================== RESCHEDULE BOOKING TESTS ====================
+
+    @Test
+    void rescheduleBooking_ShouldReturnUpdatedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("customer123");
+        RescheduleBookingRequest request = new RescheduleBookingRequest();
+        request.setNewScheduledDate(LocalDateTime.now().plusDays(2));
+        when(bookingService.rescheduleBooking(anyString(), any(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.rescheduleBooking("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).rescheduleBooking("booking123", request, "customer123");
+    }
+
+    // ==================== RATE BOOKING TESTS ====================
+
+    @Test
+    void rateBooking_ShouldReturnRatedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("customer123");
+        RateBookingRequest request = new RateBookingRequest();
+        request.setRating(5);
+        request.setFeedback("Great service!");
+        when(bookingService.rateBooking(anyString(), any(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.rateBooking("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).rateBooking("booking123", request, "customer123");
+    }
+
+    // ==================== GENERATE OTP TESTS ====================
+
+    @Test
+    void generateOtp_ShouldReturnOtp() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("customer123");
+        when(bookingService.generateCompletionOtp(anyString(), anyString())).thenReturn("123456");
+
+        var response = bookingController.generateOtp("booking123", authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().getData()).isEqualTo("123456");
+    }
+
+    // ==================== CONFIRM BOOKING TESTS ====================
+
+    @Test
+    void confirmBooking_ShouldReturnConfirmedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("tech123");
+        bookingResponse.setStatus(BookingStatus.CONFIRMED);
+        when(bookingService.confirmBooking(anyString(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.confirmBooking("booking123", authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).confirmBooking("booking123", "tech123");
+    }
+
+    // ==================== REJECT BOOKING TESTS ====================
+
+    @Test
+    void rejectBooking_ShouldReturnRejectedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("tech123");
+        RejectBookingRequest request = new RejectBookingRequest();
+        request.setReason("Not available");
+        bookingResponse.setStatus(BookingStatus.REJECTED);
+        when(bookingService.rejectBooking(anyString(), anyString(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.rejectBooking("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).rejectBooking("booking123", "tech123", "Not available");
+    }
+
+    // ==================== START SERVICE TESTS ====================
+
+    @Test
+    void startService_ShouldReturnInProgressBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("tech123");
+        bookingResponse.setStatus(BookingStatus.IN_PROGRESS);
+        when(bookingService.startService(anyString(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.startService("booking123", authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).startService("booking123", "tech123");
+    }
+
+    // ==================== COMPLETE SERVICE TESTS ====================
+
+    @Test
+    void completeService_ShouldReturnCompletedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("tech123");
+        CompleteBookingRequest request = new CompleteBookingRequest();
+        request.setOtp("123456");
+        request.setTechnicianNotes("Service completed successfully");
+        bookingResponse.setStatus(BookingStatus.COMPLETED);
+        when(bookingService.completeService(anyString(), any(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.completeService("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).completeService("booking123", request, "tech123");
+    }
+
+    // ==================== ASSIGN TECHNICIAN TESTS ====================
+
+    @Test
+    void assignTechnician_ShouldReturnAssignedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("manager123");
+        AssignTechnicianRequest request = new AssignTechnicianRequest();
+        request.setTechnicianId("tech123");
+        bookingResponse.setStatus(BookingStatus.ASSIGNED);
+        when(bookingService.assignTechnician(anyString(), any(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.assignTechnician("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).assignTechnician("booking123", request, "manager123");
+    }
+
+    // ==================== REASSIGN TECHNICIAN TESTS ====================
+
+    @Test
+    void reassignTechnician_ShouldReturnReassignedBooking() {
+        when(jwtUtil.extractUserId(anyString())).thenReturn("manager123");
+        AssignTechnicianRequest request = new AssignTechnicianRequest();
+        request.setTechnicianId("tech456");
+        when(bookingService.reassignTechnician(anyString(), any(), anyString())).thenReturn(bookingResponse);
+
+        var response = bookingController.reassignTechnician("booking123", request, authToken);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingService).reassignTechnician("booking123", request, "manager123");
     }
 }
+

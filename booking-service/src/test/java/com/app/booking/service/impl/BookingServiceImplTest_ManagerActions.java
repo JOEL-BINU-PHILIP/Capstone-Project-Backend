@@ -190,7 +190,7 @@ class BookingServiceImplTest_ManagerActions {
         // Act & Assert
         assertThatThrownBy(() -> bookingService.assignTechnician("booking123", request, "manager123"))
                 .isInstanceOf(BookingException.class)
-                .hasMessageContaining("Auth service unavailable");
+                .hasMessageContaining("Unable to validate technician");
     }
 
     @Test

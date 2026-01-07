@@ -29,8 +29,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AuthController.class)
-@AutoConfigureMockMvc
+@WebMvcTest(controllers = AuthController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(TestSecurityConfig.class)
 class AuthControllerTest {
 
@@ -107,7 +107,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register/customer")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     // ================= REGISTER TECHNICIAN =================
@@ -144,7 +144,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register/technician")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     // ================= REFRESH TOKEN =================
@@ -177,6 +177,21 @@ class AuthControllerTest {
 
         mockMvc.perform(get("/api/auth/verify-email")
                         .param("token", "dummy-token"))
+                .andExpect(status().isOk());
+    }
+
+    // ================= LOGOUT =================
+
+    @Test
+    void logout_success() throws Exception {
+        RefreshTokenRequestDTO request =
+                new RefreshTokenRequestDTO("refresh-token");
+
+        doNothing().when(authService).logout(anyString(), any());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
     }
 }

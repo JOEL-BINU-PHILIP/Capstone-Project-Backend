@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: booking-service
+  cloud:
+    config:
+      enabled: false
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: booking-test
+  main:
+    allow-bean-definition-overriding: true
+
+eureka:
+  client:
+    enabled: false
+
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi1mb3ItdGVzdGluZy1wdXJwb3Nlcw==
+
+logging:
+  level:
+    root: WARN
+    com.app.booking: DEBUG
+
