@@ -254,15 +254,16 @@ class DashboardServiceImplTest_OtherReports {
     @Test
     void getMonthlySummary_ShouldCalculateCompletionRate() {
         // Arrange
-        // Add more bookings for the month
+        // Add more bookings for the month - use timestamps AFTER monthStart
         Instant monthStart = LocalDate.of(2026, 1, 1)
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant midMonth = monthStart.plus(Duration.ofDays(15)); // Mid January
 
         List<Booking> monthBookings = new ArrayList<>();
-        monthBookings.add(createMonthBooking("m1", BookingStatus.COMPLETED, monthStart));
-        monthBookings.add(createMonthBooking("m2", BookingStatus. COMPLETED, monthStart));
-        monthBookings.add(createMonthBooking("m3", BookingStatus.PENDING, monthStart));
-        monthBookings.add(createMonthBooking("m4", BookingStatus.CANCELLED, monthStart));
+        monthBookings.add(createMonthBooking("m1", BookingStatus.COMPLETED, midMonth));
+        monthBookings.add(createMonthBooking("m2", BookingStatus.COMPLETED, midMonth));
+        monthBookings.add(createMonthBooking("m3", BookingStatus.PENDING, midMonth));
+        monthBookings.add(createMonthBooking("m4", BookingStatus.CANCELLED, midMonth));
 
         when(bookingRepository.findAll()).thenReturn(monthBookings);
 
@@ -271,7 +272,7 @@ class DashboardServiceImplTest_OtherReports {
 
         // Assert
         // 2 completed out of 4 total = 50%
-        assertThat(result. getTotalBookings()).isEqualTo(4);
+        assertThat(result.getTotalBookings()).isEqualTo(4);
         assertThat(result.getCompletedBookings()).isEqualTo(2);
         assertThat(result.getCompletionRate()).isEqualTo(50.0);
     }

@@ -33,17 +33,18 @@ class DashboardServiceImplTest_GetRequests {
     @BeforeEach
     void setUp() {
         today = LocalDate.now();
-        todayStart = today. atStartOfDay(ZoneId.systemDefault()).toInstant();
+        todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
         todayEnd = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
 
         testBookings = new ArrayList<>();
 
-        // Create various bookings
-        testBookings. add(createBooking("booking1", BookingStatus.PENDING, "HVAC", null, todayStart));
-        testBookings.add(createBooking("booking2", BookingStatus.ASSIGNED, "Plumbing", null, todayStart));
-        testBookings.add(createBooking("booking3", BookingStatus. COMPLETED, "HVAC", 5, todayStart. minus(Duration.ofHours(24))));
-        testBookings. add(createBooking("booking4", BookingStatus.COMPLETED, "Electrical", 4, todayStart.minus(Duration.ofDays(2))));
-        testBookings. add(createBooking("booking5", BookingStatus.CANCELLED, "Plumbing", null, todayStart.minus(Duration. ofDays(5))));
+        // Create various bookings - use todayStart.plus() to ensure they are AFTER todayStart
+        Instant todayNoon = todayStart.plus(Duration.ofHours(12));
+        testBookings.add(createBooking("booking1", BookingStatus.PENDING, "HVAC", null, todayNoon));
+        testBookings.add(createBooking("booking2", BookingStatus.ASSIGNED, "Plumbing", null, todayNoon));
+        testBookings.add(createBooking("booking3", BookingStatus.COMPLETED, "HVAC", 5, todayStart.minus(Duration.ofHours(24))));
+        testBookings.add(createBooking("booking4", BookingStatus.COMPLETED, "Electrical", 4, todayStart.minus(Duration.ofDays(2))));
+        testBookings.add(createBooking("booking5", BookingStatus.CANCELLED, "Plumbing", null, todayStart.minus(Duration.ofDays(5))));
     }
 
     private Booking createBooking(String id, BookingStatus status, String category, Integer rating, Instant createdAt) {
