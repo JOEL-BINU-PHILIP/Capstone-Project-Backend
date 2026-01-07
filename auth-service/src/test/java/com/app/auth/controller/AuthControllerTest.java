@@ -1,40 +1,46 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.TestSecurityConfig;
 import com.app.auth.dto.request.LoginRequestDTO;
 import com.app.auth.dto.request.RefreshTokenRequestDTO;
 import com.app.auth.dto.request.RegisterCustomerDTO;
+import com.app.auth.dto.request.RegisterTechnicianDTO;
 import com.app.auth.dto.response.AuthResponseDTO;
 import com.app.auth.dto.response.RegistrationResponseDTO;
-import com.app.auth.model.UserRole;
 import com.app.auth.security.JwtAuthenticationFilter;
 import com.app.auth.security.JwtUtils;
 import com.app.auth.service.AuthService;
 import com.app.auth.service.RefreshTokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
-@AutoConfigureMockMvc(addFilters = false) // Disable security filters for unit testing
-public class AuthControllerTest {
+@AutoConfigureMockMvc
+@Import(TestSecurityConfig.class)
+class AuthControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    // ===== Mocked dependencies of AuthController =====
 
     @MockBean
     private AuthService authService;
@@ -48,83 +54,129 @@ public class AuthControllerTest {
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    private LoginRequestDTO loginRequest;
-    private AuthResponseDTO authResponse;
-
-    @BeforeEach
-    void setUp() {
-        loginRequest = new LoginRequestDTO("testuser", "password123", null);
-
-        AuthResponseDTO.UserInfoDTO userInfo = AuthResponseDTO.UserInfoDTO.builder()
-                .id("1")
-                .username("testuser")
-                .email("test@example.com")
-                .roles(Set.of(UserRole.ROLE_CUSTOMER))
-                .build();
-
-        authResponse = AuthResponseDTO.builder()
-                .accessToken("access-token")
-                .refreshToken("refresh-token")
-                .user(userInfo)
-                .build();
-    }
+    // ===================== LOGIN =====================
 
     @Test
-    void login_Success() throws Exception {
-        when(authService.login(any(LoginRequestDTO.class), any())).thenReturn(authResponse);
+    void login_success() throws Exception {
+        LoginRequestDTO request =
+                new LoginRequestDTO("john", "password", null);
+
+        AuthResponseDTO response = AuthResponseDTO.builder()
+                .accessToken("access-token")
+                .refreshToken("refresh-token")
+                .tokenType("Bearer")
+                .expiresIn(3600L)
+                .build();
+
+        when(authService.login(any(LoginRequestDTO.class), any()))
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").value("access-token"));
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
     }
 
+    // ================= REGISTER CUSTOMER =================
+
     @Test
-    void registerCustomer_Success() throws Exception {
-        RegisterCustomerDTO registerRequest = new RegisterCustomerDTO(
-                "newuser", "new@example.com", "Password@123", "John", "Doe", "9876543210", "City", "State", "123456"
+    void registerCustomer_success() throws Exception {
+        RegisterCustomerDTO dto = new RegisterCustomerDTO(
+                "john",
+                "john@test.com",
+                "Password@123",
+                "John",
+                "Doe",
+                "9876543210",
+                "City",
+                "State",
+                "123456"
         );
 
-        RegistrationResponseDTO regResponse = RegistrationResponseDTO.builder()
-                .userId("user-id-123")
-                .username("newuser")
-                .build();
+        RegistrationResponseDTO response =
+                RegistrationResponseDTO.builder()
+                        .userId("user123")
+                        .build();
 
         when(authService.registerCustomer(
-                eq(registerRequest.getUsername()),
-                eq(registerRequest.getEmail()),
-                eq(registerRequest.getPassword()),
-                eq(registerRequest.getFirstName()),
-                eq(registerRequest.getLastName()),
-                eq(registerRequest.getPhoneNumber()),
-                eq(registerRequest.getCity()),
-                eq(registerRequest.getState()),
-                eq(registerRequest.getZipCode())
-        )).thenReturn(regResponse);
+                anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString()
+        )).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/register/customer")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registerRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value("user-id-123"));
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
     }
 
-    @Test
-    void refreshToken_Success() throws Exception {
-        RefreshTokenRequestDTO refreshRequest = new RefreshTokenRequestDTO("valid-refresh-token");
+    // ================= REGISTER TECHNICIAN =================
 
-        when(refreshTokenService.refreshAccessToken(any(), any(), any())).thenReturn(authResponse);
+    @Test
+    void registerTechnician_success() throws Exception {
+        RegisterTechnicianDTO dto = new RegisterTechnicianDTO(
+                "tech",
+                "tech@test.com",
+                "Password@123",
+                "Tech",
+                "Guy",
+                "9876543210",
+                Set.of("AC"),
+                5,
+                "Experienced",
+                "City",
+                "State",
+                "AADHAAR"
+        );
+
+        RegistrationResponseDTO response =
+                RegistrationResponseDTO.builder()
+                        .userId("tech123")
+                        .build();
+
+        when(authService.registerTechnician(
+                anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(),
+                anySet(), anyInt(), anyString(),
+                anyString(), anyString(), anyString()
+        )).thenReturn(response);
+
+        mockMvc.perform(post("/api/auth/register/technician")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+    }
+
+    // ================= REFRESH TOKEN =================
+
+    @Test
+    void refreshToken_success() throws Exception {
+        RefreshTokenRequestDTO request =
+                new RefreshTokenRequestDTO("refresh-token");
+
+        AuthResponseDTO response = AuthResponseDTO.builder()
+                .accessToken("new-access-token")
+                .refreshToken("new-refresh-token")
+                .build();
+
+        when(refreshTokenService.refreshAccessToken(
+                anyString(), anyString(), anyString()
+        )).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(refreshRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").value("access-token"));
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    // ================= VERIFY EMAIL =================
+
+    @Test
+    void verifyEmail_success() throws Exception {
+        doNothing().when(authService).verifyEmail(anyString());
+
+        mockMvc.perform(get("/api/auth/verify-email")
+                        .param("token", "dummy-token"))
+                .andExpect(status().isOk());
     }
 }

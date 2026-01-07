@@ -4,25 +4,31 @@ import com.app.auth.dto.request.ChangePasswordRequest;
 import com.app.auth.dto.request.UpdateProfileRequest;
 import com.app.auth.dto.response.UserProfileResponseDTO;
 import com.app.auth.exception.InvalidCredentialsException;
+import com.app.auth.exception.ResourceNotFoundException;
 import com.app.auth.model.User;
-import com.app.auth.repository.TechnicianProfileRepository;
 import com.app.auth.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class UserServiceImplTest {
+class UserServiceImplTest {
+
+    @InjectMocks
+    private UserServiceImpl userService;
 
     @Mock
     private UserRepository userRepository;
@@ -30,72 +36,150 @@ public class UserServiceImplTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @Mock
-    private TechnicianProfileRepository technicianProfileRepository;
+    // =========================
+    // GET PROFILE
+    // =========================
+    @Test
+    void getProfile_success() {
 
-    @InjectMocks
-    private UserServiceImpl userService;
-
-    private User user;
-
-    @BeforeEach
-    void setUp() {
-        user = User.builder()
-                .id("1")
-                .username("testuser")
-                .firstName("OldName")
-                .password("encodedOldPass")
+        User user = User.builder()
+                .id("u1")
+                .username("john")
+                .email("john@test.com")
+                .firstName("John")
+                .lastName("Doe")
+                .enabled(true)
+                .emailVerified(true)
+                .roles(Set.of())
                 .build();
+
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(user));
+
+        UserProfileResponseDTO response =
+                userService.getProfileByUsername("john");
+
+        assertNotNull(response);
+        assertEquals("john", response.getUsername());
+        assertEquals("John", response.getFirstName());
     }
 
+    // =========================
+    // UPDATE PROFILE
+    // =========================
     @Test
-    void getProfileByUsername_Success() {
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+    void updateProfile_success() {
 
-        UserProfileResponseDTO profile = userService.getProfileByUsername("testuser");
+        User user = User.builder()
+                .username("john")
+                .firstName("Old")
+                .lastName("Name")
+                .build();
 
-        assertNotNull(profile);
-        assertEquals("testuser", profile.getUsername());
-        assertEquals("OldName", profile.getFirstName());
-    }
-
-    @Test
-    void updateProfile_Success() {
         UpdateProfileRequest request = UpdateProfileRequest.builder()
-                .firstName("NewName")
-                .city("NewCity")
+                .firstName("New")
+                .city("Bangalore")
                 .build();
 
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(user));
 
-        UserProfileResponseDTO updated = userService.updateProfile("testuser", request);
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertEquals("NewName", updated.getFirstName());
-        assertEquals("NewCity", updated.getCity());
+        UserProfileResponseDTO response =
+                userService.updateProfile("john", request);
+
+        assertEquals("New", response.getFirstName());
+        assertEquals("Bangalore", response.getCity());
     }
 
+    // =========================
+    // CHANGE PASSWORD – SUCCESS
+    // =========================
     @Test
-    void changePassword_Success() {
-        ChangePasswordRequest request = new ChangePasswordRequest("oldPass", "newPass123", "newPass123");
+    void changePassword_success() {
 
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("oldPass", "encodedOldPass")).thenReturn(true);
-        when(passwordEncoder.encode("newPass123")).thenReturn("encodedNewPass");
+        User user = User.builder()
+                .username("john")
+                .password("hashed-old")
+                .build();
 
-        userService.changePassword("testuser", request);
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(user));
 
+        when(passwordEncoder.matches("Old@123", "hashed-old"))
+                .thenReturn(true);
+
+        when(passwordEncoder.encode("New@1234"))
+                .thenReturn("hashed-new");
+
+        ChangePasswordRequest request =
+                new ChangePasswordRequest("Old@123", "New@1234", "New@1234");
+
+        userService.changePassword("john", request);
+
+        verify(userRepository).save(any(User.class));
+        assertEquals("hashed-new", user.getPassword());
+    }
+
+    // =========================
+    // CHANGE PASSWORD – WRONG CURRENT PASSWORD
+    // =========================
+    @Test
+    void changePassword_fails_whenCurrentPasswordWrong() {
+
+        User user = User.builder()
+                .username("john")
+                .password("hashed-old")
+                .build();
+
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(any(), any()))
+                .thenReturn(false);
+
+        ChangePasswordRequest request =
+                new ChangePasswordRequest("Wrong@123", "New@1234", "New@1234");
+
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> userService.changePassword("john", request)
+        );
+    }
+
+    // =========================
+    // DEACTIVATE USER
+    // =========================
+    @Test
+    void deactivateUser_success() {
+
+        User user = User.builder()
+                .enabled(true)
+                .build();
+
+        when(userRepository.findById("u1"))
+                .thenReturn(Optional.of(user));
+
+        userService.deactivateUser("u1");
+
+        assertFalse(user.isEnabled());
         verify(userRepository).save(user);
-        assertEquals("encodedNewPass", user.getPassword());
     }
 
+    // =========================
+    // USER NOT FOUND
+    // =========================
     @Test
-    void changePassword_WrongCurrentPassword() {
-        ChangePasswordRequest request = new ChangePasswordRequest("wrongPass", "newPass", "newPass");
+    void getProfile_userNotFound() {
 
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrongPass", "encodedOldPass")).thenReturn(false);
+        when(userRepository.findByUsername("missing"))
+                .thenReturn(Optional.empty());
 
-        assertThrows(InvalidCredentialsException.class, () -> userService.changePassword("testuser", request));
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> userService.getProfileByUsername("missing")
+        );
     }
 }
