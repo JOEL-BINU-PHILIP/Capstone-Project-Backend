@@ -14,7 +14,7 @@ import java.util.Map;
 @FeignClient(
         name = "auth-service",
         url = "${services.auth-service.url:http://localhost:8081}",
-        configuration = FeignConfig. class,
+        configuration = FeignConfig.class,
         fallback = AuthServiceFallback.class
 )
 public interface AuthServiceClient {

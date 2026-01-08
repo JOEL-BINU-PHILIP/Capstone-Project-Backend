@@ -73,7 +73,7 @@ public class NotificationEventListener {
 
         switch (event.getEventType()) {
             case BOOKING_CREATED:
-                notificationType = NotificationType. BOOKING_CREATED;
+                notificationType = NotificationType.BOOKING_CREATED;
                 title = "Booking Confirmed - " + event.getBookingNumber();
                 message = String.format(
                         "Dear %s, your booking %s for %s has been created successfully.  " +

@@ -39,7 +39,7 @@ public class DataInitializer {
                         .build();
 
                 userRepository.save(admin);
-                System.out.println("✅ Admin user created");
+                System.out.println("Admin user created");
             }
 
             // ======================

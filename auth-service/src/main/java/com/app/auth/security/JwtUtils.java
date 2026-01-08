@@ -42,55 +42,19 @@ public class JwtUtils {
      * This is the UPDATED method - includes userId, fullName, email, phoneNumber
      */
     public String generateAccessToken(User user) {
-        String fullName = buildFullName(user. getFirstName(), user.getLastName());
+        String fullName = buildFullName(user.getFirstName(), user.getLastName());
 
         return Jwts.builder()
                 .setSubject(user.getUsername())
-                .claim("userId", user.getId())                    // ← ADDED
-                .claim("fullName", fullName)                      // ← ADDED
-                . claim("email", user.getEmail())                  // ← ADDED
-                .claim("phoneNumber", user.getPhoneNumber())      // ← ADDED
+                .claim("userId", user.getId())
+                .claim("fullName", fullName)
+                . claim("email", user.getEmail())
+                .claim("phoneNumber", user.getPhoneNumber())
                 .claim("roles", user.getRoles().stream()
                         .map(Enum::name)
                         .collect(Collectors.toList()))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
-                .signWith(key, SignatureAlgorithm.HS512)
-                .compact();
-    }
-
-    /**
-     * Generate access token with username and roles only (legacy support)
-     * Keep this for backward compatibility if needed
-     */
-    public String generateAccessToken(String username, Set<UserRole> roles) {
-        return Jwts.builder()
-                .setSubject(username)
-                .claim("roles", roles. stream()
-                        .map(Enum::name)
-                        .collect(Collectors.toList()))
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
-                .signWith(key, SignatureAlgorithm.HS512)
-                .compact();
-    }
-
-    /**
-     * Generate access token with all user info (alternative signature)
-     */
-    public String generateAccessToken(String username, String userId, String fullName,
-                                      String email, String phoneNumber, Set<UserRole> roles) {
-        return Jwts.builder()
-                .setSubject(username)
-                .claim("userId", userId)
-                .claim("fullName", fullName)
-                .claim("email", email)
-                .claim("phoneNumber", phoneNumber)
-                .claim("roles", roles.stream()
-                        .map(Enum::name)
-                        . collect(Collectors.toList()))
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System. currentTimeMillis() + accessTokenExpiration))
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
@@ -109,7 +73,7 @@ public class JwtUtils {
     }
 
     /**
-     * Generate temporary token (for password reset, email verification, etc.)
+     * Generate temporary token (for password reset, etc.)
      */
     public String generateTempToken(String username) {
         return Jwts.builder()
@@ -132,76 +96,6 @@ public class JwtUtils {
         } catch (JwtException e) {
             log.error("Failed to extract username from token", e);
             return null;
-        }
-    }
-
-    /**
-     * Extract user ID from token
-     */
-    public String extractUserId(String token) {
-        try {
-            Claims claims = getClaims(token);
-            Object userId = claims.get("userId");
-            return userId != null ? userId.toString() : claims.getSubject();
-        } catch (JwtException e) {
-            log.error("Failed to extract userId from token", e);
-            return null;
-        }
-    }
-
-    /**
-     * Extract full name from token
-     */
-    public String extractFullName(String token) {
-        try {
-            Claims claims = getClaims(token);
-            Object fullName = claims.get("fullName");
-            return fullName != null ? fullName.toString() : claims.getSubject();
-        } catch (JwtException e) {
-            log.error("Failed to extract fullName from token", e);
-            return null;
-        }
-    }
-
-    /**
-     * Extract email from token
-     */
-    public String extractEmail(String token) {
-        try {
-            Claims claims = getClaims(token);
-            Object email = claims.get("email");
-            return email != null ? email.toString() : null;
-        } catch (JwtException e) {
-            log.error("Failed to extract email from token", e);
-            return null;
-        }
-    }
-
-    /**
-     * Extract phone number from token
-     */
-    public String extractPhoneNumber(String token) {
-        try {
-            Claims claims = getClaims(token);
-            Object phone = claims.get("phoneNumber");
-            return phone != null ? phone.toString() : null;
-        } catch (JwtException e) {
-            log.error("Failed to extract phoneNumber from token", e);
-            return null;
-        }
-    }
-
-    /**
-     * Extract roles from token
-     */
-    @SuppressWarnings("unchecked")
-    public Set<String> extractRoles(String token) {
-        try {
-            Claims claims = getClaims(token);
-            return Set.copyOf((java.util.List<String>) claims.get("roles"));
-        } catch (Exception e) {
-            log.error("Failed to extract roles from token", e);
-            return Set.of();
         }
     }
 

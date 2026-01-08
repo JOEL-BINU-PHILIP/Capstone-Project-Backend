@@ -98,11 +98,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .createdBy(createdBy)
                 .build();
 
-        Invoice saved = invoiceRepository. save(invoice);
+        Invoice saved = invoiceRepository.save(invoice);
         log.info("Invoice auto-generated: {} for booking: {}, total: {}",
                 saved. getInvoiceNumber(), bookingId, totalAmount);
 
-        // Publish INVOICE_GENERATED event (for Notification Service)
+        // Publish INVOICE_GENERATED event
         publishInvoiceGeneratedEvent(saved);
 
         return toResponse(saved);

@@ -47,18 +47,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     if (user != null && user.isEnabled() && !user.isLocked()) {
 
+                        // This creates authorities based on user roles so that Spring Security can handle role-based access control.
                         Set<SimpleGrantedAuthority> authorities = user.getRoles()
                                 .stream()
                                 .map(role -> new SimpleGrantedAuthority(role.name()))
                                 .collect(Collectors.toSet());
-
+                        // Create authentication token
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
                                         username,
                                         null,
                                         authorities
                                 );
-
+                        // Set details
                         authentication.setDetails(
                                 new WebAuthenticationDetailsSource().buildDetails(request)
                         );

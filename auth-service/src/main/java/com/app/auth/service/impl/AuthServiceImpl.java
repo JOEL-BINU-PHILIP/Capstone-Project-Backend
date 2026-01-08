@@ -41,7 +41,7 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.security.max-login-attempts: 5}")
     private int maxLoginAttempts;
 
-    @Value("${app. security.account-lock-duration-minutes:30}")
+    @Value("${app.security.account-lock-duration-minutes:30}")
     private long accountLockDurationMinutes;
 
     @Value("${app.security.email-verification-token-expiry-hours:24}")
@@ -334,7 +334,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void verifyEmail(String token) {
-        User user = userRepository. findByEmailVerificationToken(token)
+        User user = userRepository.findByEmailVerificationToken(token)
                 .orElseThrow(() -> new InvalidTokenException("Invalid verification token"));
 
         if (user.getEmailVerificationTokenExpiry().isBefore(Instant.now())) {

@@ -25,7 +25,7 @@ public class EmailServiceImpl implements EmailService {
     @Value("${app.mail.from}")
     private String fromEmail;
 
-    @Value("${app.mail.enabled: true}")
+    @Value("${app.mail.enabled:true}")
     private boolean emailEnabled;
 
     @Override
@@ -46,7 +46,7 @@ public class EmailServiceImpl implements EmailService {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
-            message.setTo(notification. getUserEmail());
+            message.setTo(notification.getUserEmail());
             message.setSubject(notification.getTitle());
             message.setText(buildEmailBody(notification));
 
