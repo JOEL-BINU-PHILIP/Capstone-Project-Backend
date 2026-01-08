@@ -1,0 +1,80 @@
+pipeline {
+
+    agent any
+
+    tools {
+        maven 'Maven'
+    }
+
+    environment {
+        // SonarQube token stored in Jenkins Credentials
+        SONAR_AUTH_TOKEN = credentials('sonar-token')
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/JOEL-BINU-PHILIP/Capstone-Project-Backend.git'
+            }
+        }
+
+        stage('Build + Test (All Modules)') {
+            steps {
+                bat '''
+                mvn clean verify
+                '''
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    bat '''
+                    mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar ^
+                      -Dsonar.projectKey=Capstone-Service-Management ^
+                      -Dsonar.projectName="Capstone Service Management" ^
+                      -Dsonar.login=%SONAR_AUTH_TOKEN%
+                    '''
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                bat '''
+                docker build -t servicemanagementsystem-auth:latest ./auth-service
+                docker build -t servicemanagementsystem-service-catalog:latest ./service_catalog
+                docker build -t servicemanagementsystem-booking:latest ./booking-service
+                docker build -t servicemanagementsystem-billing:latest ./billing-service
+                docker build -t servicemanagementsystem-notification:latest ./notification-service
+                docker build -t servicemanagementsystem-api-gateway:latest ./api-gateway
+                docker build -t servicemanagementsystem-config-server:latest ./config-server
+                docker build -t servicemanagementsystem-service-registry:latest ./service-registry
+                '''
+            }
+        }
+
+        stage('Deploy (Docker Compose)') {
+            steps {
+                bat '''
+                docker compose down
+                docker compose up -d
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CI/CD pipeline completed successfully!'
+        }
+        unstable {
+            echo 'Pipeline completed with warnings.'
+        }
+        failure {
+            echo 'CI/CD pipeline failed.'
+        }
+    }
+}
